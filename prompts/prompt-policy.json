@@ -1,0 +1,8 @@
+{
+  "core_rules": {
+    "variants": [
+      { "file": "00-core-rules.md", "weight": 80 },
+      { "file": "00-core-rules.v2.md", "weight": 20 }
+    ]
+  }
+}

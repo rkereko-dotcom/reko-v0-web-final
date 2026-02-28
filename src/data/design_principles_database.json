@@ -1,0 +1,3631 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "created": "2025-12-29",
+    "description": "Design Principles Database for Reko V0 Design Learning App",
+    "language": "mn/en",
+    "total_categories": 22,
+    "searchable": true,
+    "statistics": {
+      "gestalt_principles": 10,
+      "color_harmonies": 7,
+      "font_categories": 6,
+      "design_books": 14,
+      "design_masters": 8,
+      "reko_principles": 5,
+      "emotion_mappings": 5
+    },
+    "last_updated": "2025-12-29T06:27:45.840392",
+    "learning_enabled": true,
+    "auto_update_enabled": true,
+    "data_sources_count": 14
+  },
+  "categories": {
+    "gestalt_principles": {
+      "id": "gestalt",
+      "name": "Gestalt Principles",
+      "name_mn": "Гештальт зарчмууд",
+      "description": "Visual perception principles that describe how humans naturally organize visual elements",
+      "principles": [
+        {
+          "id": "proximity",
+          "name": "Proximity",
+          "name_mn": "Ойрхон байдал",
+          "definition": "Elements close together are perceived as a group",
+          "definition_mn": "Ойр байрлалтай элементүүд нэг бүлэг гэж хүлээн зөвшөөрөгддөг",
+          "applications": [
+            "Navigation menus",
+            "Form field grouping",
+            "Card layouts",
+            "Related content clustering"
+          ],
+          "visual_impact": "Creates implicit relationships without borders",
+          "do": [
+            "Group related items closely",
+            "Add space between unrelated groups"
+          ],
+          "dont": [
+            "Mix unrelated items in close proximity"
+          ],
+          "examples": [
+            "Spotify playlist items",
+            "iOS Settings groups"
+          ]
+        },
+        {
+          "id": "similarity",
+          "name": "Similarity",
+          "name_mn": "Төсөөтэй байдал",
+          "definition": "Elements with same shape, color, or size are perceived as related",
+          "definition_mn": "Ижил хэлбэр, өнгө, хэмжээтэй элементүүд холбоотой гэж үздэг",
+          "applications": [
+            "Button styles",
+            "Icon families",
+            "Category coding",
+            "Navigation links"
+          ],
+          "visual_impact": "Creates patterns and hierarchy",
+          "do": [
+            "Use consistent styling for similar functions",
+            "Color-code categories"
+          ],
+          "dont": [
+            "Make clickable and non-clickable elements look the same"
+          ],
+          "examples": [
+            "Google Material icons",
+            "Bootstrap buttons"
+          ]
+        },
+        {
+          "id": "closure",
+          "name": "Closure",
+          "name_mn": "Бүрэн дүрс",
+          "definition": "The brain completes incomplete shapes",
+          "definition_mn": "Тархи дутуу дүрсийг бүтэн болгож хардаг",
+          "applications": [
+            "Minimal logos",
+            "Loading indicators",
+            "Progress bars",
+            "Icon design"
+          ],
+          "visual_impact": "Creates engaging, memorable designs",
+          "do": [
+            "Leave strategic gaps in logos",
+            "Use implied shapes"
+          ],
+          "dont": [
+            "Make shapes too fragmented to recognize"
+          ],
+          "examples": [
+            "IBM logo",
+            "WWF panda",
+            "NBC peacock"
+          ]
+        },
+        {
+          "id": "continuity",
+          "name": "Continuity",
+          "name_mn": "Үргэлжлэл",
+          "definition": "The eye follows lines, curves, and paths naturally",
+          "definition_mn": "Нүд шугам, муруйг дагаж явдаг",
+          "applications": [
+            "Timeline designs",
+            "Progress indicators",
+            "Navigation flows",
+            "Carousels"
+          ],
+          "visual_impact": "Guides user journey smoothly",
+          "do": [
+            "Create clear visual paths",
+            "Align elements along lines"
+          ],
+          "dont": [
+            "Break visual flow unexpectedly"
+          ],
+          "examples": [
+            "Pinterest masonry",
+            "LinkedIn timeline"
+          ]
+        },
+        {
+          "id": "figure_ground",
+          "name": "Figure/Ground",
+          "name_mn": "Дүрс/Суурь",
+          "definition": "The brain separates figures from background",
+          "definition_mn": "Тархи дүрсийг background-аас ялгаж хардаг",
+          "applications": [
+            "Modal dialogs",
+            "Card designs",
+            "Negative space logos",
+            "Overlays"
+          ],
+          "visual_impact": "Creates focus and depth",
+          "do": [
+            "Use contrast for important elements",
+            "Leverage negative space"
+          ],
+          "dont": [
+            "Make figure and ground equally prominent"
+          ],
+          "examples": [
+            "FedEx arrow",
+            "Rubin's vase illusion"
+          ]
+        },
+        {
+          "id": "common_region",
+          "name": "Common Region",
+          "name_mn": "Нийтлэг бүс",
+          "definition": "Elements within a boundary are perceived as a group",
+          "definition_mn": "Нэг хүрээнд байгаа элементүүд бүлэг болдог",
+          "applications": [
+            "Card containers",
+            "Form sections",
+            "Grouped content",
+            "Panels"
+          ],
+          "visual_impact": "Clear grouping and organization",
+          "do": [
+            "Use subtle borders or backgrounds",
+            "Create visual containers"
+          ],
+          "dont": [
+            "Overuse borders creating visual noise"
+          ],
+          "examples": [
+            "Facebook posts",
+            "Material Design cards"
+          ]
+        },
+        {
+          "id": "common_fate",
+          "name": "Common Fate",
+          "name_mn": "Нийтлэг хөдөлгөөн",
+          "definition": "Elements moving in same direction are perceived as related",
+          "definition_mn": "Ижил чиглэлд хөдөлж буй элементүүд холбоотой",
+          "applications": [
+            "Carousel animations",
+            "Loading animations",
+            "Workflow transitions",
+            "Parallax effects"
+          ],
+          "visual_impact": "Creates dynamic relationships",
+          "do": [
+            "Animate related items together",
+            "Use coordinated motion"
+          ],
+          "dont": [
+            "Have unrelated elements move together"
+          ],
+          "examples": [
+            "iOS folder animations",
+            "Slack loading dots"
+          ]
+        },
+        {
+          "id": "symmetry",
+          "name": "Symmetry & Order",
+          "name_mn": "Тэгш хэм ба дараалал",
+          "definition": "Symmetrical elements appear unified and stable",
+          "definition_mn": "Тэгш хэмтэй элементүүд нэгдмэл, тогтвортой харагддаг",
+          "applications": [
+            "Logos",
+            "Layout balance",
+            "Form designs",
+            "Navigation"
+          ],
+          "visual_impact": "Creates harmony and stability",
+          "do": [
+            "Balance visual weight",
+            "Use intentional asymmetry"
+          ],
+          "dont": [
+            "Create unintentional imbalance"
+          ],
+          "examples": [
+            "Apple logo",
+            "Mercedes logo"
+          ]
+        },
+        {
+          "id": "pragnanz",
+          "name": "Prägnanz / Simplicity",
+          "name_mn": "Энгийн байдал",
+          "definition": "The brain interprets ambiguous shapes as simple as possible",
+          "definition_mn": "Тархи хамгийн энгийн хэлбэрээр ойлгохыг эрмэлздэг",
+          "applications": [
+            "Olympic rings logo",
+            "Icon design",
+            "UI simplification",
+            "Data visualization"
+          ],
+          "visual_impact": "Creates clarity and instant recognition",
+          "do": [
+            "Reduce to essential elements",
+            "Prefer simple shapes"
+          ],
+          "dont": [
+            "Over-complicate designs"
+          ],
+          "examples": [
+            "Olympic rings",
+            "Google logo evolution"
+          ]
+        },
+        {
+          "id": "focal_point",
+          "name": "Focal Point",
+          "name_mn": "Анхаарлын төв",
+          "definition": "Different or contrasting elements attract attention",
+          "definition_mn": "Ялгаатай элемент анхаарал татдаг",
+          "applications": [
+            "CTA buttons",
+            "Hero sections",
+            "Key highlights",
+            "Error states"
+          ],
+          "visual_impact": "Directs attention and guides actions",
+          "do": [
+            "Make one element stand out",
+            "Use contrast strategically"
+          ],
+          "dont": [
+            "Create multiple competing focal points"
+          ],
+          "examples": [
+            "Stripe hero buttons",
+            "Airbnb search CTA"
+          ]
+        }
+      ]
+    },
+    "color_theory": {
+      "id": "color",
+      "name": "Color Theory",
+      "name_mn": "Өнгөний онол",
+      "description": "Comprehensive understanding of color relationships and applications",
+      "color_wheel": {
+        "history": {
+          "creator": "Isaac Newton",
+          "year": 1666,
+          "source": "Opticks",
+          "method": "Prism light separation"
+        },
+        "structure": {
+          "total_colors": 12,
+          "primary": 3,
+          "secondary": 3,
+          "tertiary": 6
+        }
+      },
+      "color_systems": {
+        "ryb": {
+          "name": "RYB (Traditional)",
+          "type": "Subtractive",
+          "use": "Traditional art, painting",
+          "primary": [
+            "Red",
+            "Yellow",
+            "Blue"
+          ],
+          "secondary": [
+            "Orange",
+            "Green",
+            "Purple"
+          ]
+        },
+        "rgb": {
+          "name": "RGB (Digital)",
+          "type": "Additive",
+          "use": "Screens, digital design",
+          "primary": [
+            "Red",
+            "Green",
+            "Blue"
+          ],
+          "secondary": [
+            "Cyan",
+            "Magenta",
+            "Yellow"
+          ],
+          "combined": "White"
+        },
+        "cmyk": {
+          "name": "CMYK (Print)",
+          "type": "Subtractive",
+          "use": "Print, physical media",
+          "primary": [
+            "Cyan",
+            "Magenta",
+            "Yellow",
+            "Key/Black"
+          ],
+          "combined": "Black"
+        }
+      },
+      "color_categories": {
+        "primary": {
+          "ryb": [
+            "Red",
+            "Yellow",
+            "Blue"
+          ],
+          "rgb": [
+            "Red",
+            "Green",
+            "Blue"
+          ],
+          "property": "Cannot be created by mixing other colors"
+        },
+        "secondary": {
+          "ryb": [
+            {
+              "color": "Orange",
+              "mix": "Red + Yellow"
+            },
+            {
+              "color": "Green",
+              "mix": "Yellow + Blue"
+            },
+            {
+              "color": "Purple",
+              "mix": "Red + Blue"
+            }
+          ],
+          "rgb": [
+            {
+              "color": "Yellow",
+              "mix": "Red + Green"
+            },
+            {
+              "color": "Cyan",
+              "mix": "Green + Blue"
+            },
+            {
+              "color": "Magenta",
+              "mix": "Blue + Red"
+            }
+          ]
+        },
+        "tertiary": [
+          {
+            "name": "Red-Orange",
+            "alias": "Vermilion",
+            "mix": "Red + Orange"
+          },
+          {
+            "name": "Yellow-Orange",
+            "alias": "Amber",
+            "mix": "Yellow + Orange"
+          },
+          {
+            "name": "Yellow-Green",
+            "alias": "Chartreuse",
+            "mix": "Yellow + Green"
+          },
+          {
+            "name": "Blue-Green",
+            "alias": "Teal/Cyan",
+            "mix": "Blue + Green"
+          },
+          {
+            "name": "Blue-Purple",
+            "alias": "Violet",
+            "mix": "Blue + Purple"
+          },
+          {
+            "name": "Red-Purple",
+            "alias": "Magenta",
+            "mix": "Red + Purple"
+          }
+        ]
+      },
+      "color_properties": {
+        "hue": {
+          "name": "Hue",
+          "name_mn": "Өнгөлөг",
+          "definition": "The pure form of a color, its position on the color wheel",
+          "range": "0-360 degrees",
+          "values": {
+            "red": 0,
+            "yellow": 60,
+            "green": 120,
+            "cyan": 180,
+            "blue": 240,
+            "magenta": 300
+          }
+        },
+        "saturation": {
+          "name": "Saturation",
+          "name_mn": "Ханалт",
+          "definition": "The intensity or purity of a color",
+          "range": "0-100%",
+          "high": {
+            "value": "100%",
+            "effect": "Vivid, intense, pure"
+          },
+          "low": {
+            "value": "0%",
+            "effect": "Gray, muted, dull"
+          }
+        },
+        "value": {
+          "name": "Value / Brightness / Lightness",
+          "name_mn": "Гэрэлтүүлэг",
+          "definition": "How light or dark a color is",
+          "range": "0-100%",
+          "high": {
+            "value": "100%",
+            "effect": "Light, bright"
+          },
+          "low": {
+            "value": "0%",
+            "effect": "Dark, black"
+          }
+        },
+        "chroma": {
+          "name": "Chroma",
+          "definition": "The purity of a color relative to gray",
+          "difference_from_saturation": "Absolute measure vs percentage"
+        }
+      },
+      "tint_shade_tone": {
+        "tint": {
+          "name": "Tint",
+          "name_mn": "Цайвар өнгө",
+          "formula": "Hue + White",
+          "effect": "Lighter, pastel",
+          "examples": [
+            "Red → Pink",
+            "Blue → Light Blue",
+            "Green → Mint"
+          ],
+          "applications": [
+            "Backgrounds",
+            "Feminine designs",
+            "Highlights",
+            "Soft moods"
+          ]
+        },
+        "shade": {
+          "name": "Shade",
+          "name_mn": "Бараан өнгө",
+          "formula": "Hue + Black",
+          "effect": "Darker, deeper",
+          "examples": [
+            "Red → Maroon",
+            "Blue → Navy",
+            "Green → Forest Green"
+          ],
+          "applications": [
+            "Depth",
+            "Shadows",
+            "Luxury",
+            "Drama"
+          ]
+        },
+        "tone": {
+          "name": "Tone",
+          "name_mn": "Зөөлөрсөн өнгө",
+          "formula": "Hue + Gray",
+          "effect": "Muted, subtle",
+          "examples": [
+            "Red → Dusty Rose",
+            "Blue → Slate Blue",
+            "Green → Sage"
+          ],
+          "applications": [
+            "Professional designs",
+            "Vintage feel",
+            "Harmonious palettes"
+          ]
+        }
+      },
+      "color_temperature": {
+        "warm": {
+          "colors": [
+            "Red",
+            "Orange",
+            "Yellow",
+            "Red-Orange",
+            "Yellow-Orange"
+          ],
+          "associations": [
+            "Fire",
+            "Sun",
+            "Heat",
+            "Passion"
+          ],
+          "psychology": {
+            "emotions": [
+              "Energy",
+              "Excitement",
+              "Warmth",
+              "Urgency",
+              "Passion"
+            ],
+            "effects": [
+              "Stimulating",
+              "Appetite-inducing",
+              "Attention-grabbing"
+            ]
+          },
+          "visual_effect": "Advance toward viewer, make spaces feel smaller",
+          "applications": [
+            "Food industry",
+            "Sale signs",
+            "CTAs",
+            "Entertainment"
+          ]
+        },
+        "cool": {
+          "colors": [
+            "Blue",
+            "Green",
+            "Purple",
+            "Blue-Green",
+            "Blue-Purple"
+          ],
+          "associations": [
+            "Water",
+            "Sky",
+            "Nature",
+            "Ice"
+          ],
+          "psychology": {
+            "emotions": [
+              "Calm",
+              "Trust",
+              "Professionalism",
+              "Serenity"
+            ],
+            "effects": [
+              "Relaxing",
+              "Soothing",
+              "Trustworthy"
+            ]
+          },
+          "visual_effect": "Recede from viewer, make spaces feel larger",
+          "applications": [
+            "Tech companies",
+            "Healthcare",
+            "Finance",
+            "Corporate"
+          ]
+        },
+        "neutral": {
+          "colors": [
+            "Black",
+            "White",
+            "Gray",
+            "Beige",
+            "Brown",
+            "Tan"
+          ],
+          "applications": [
+            "Backgrounds",
+            "Text",
+            "Balance",
+            "Professional"
+          ]
+        },
+        "relative_temperature": {
+          "note": "Color temperature is relative to surrounding colors",
+          "example": "Red-purple appears cooler next to red, warmer next to blue"
+        }
+      },
+      "color_harmonies": [
+        {
+          "id": "complementary",
+          "name": "Complementary",
+          "name_mn": "Эсрэг өнгө",
+          "definition": "Colors opposite on color wheel (180°)",
+          "examples": [
+            {
+              "pair": [
+                "Red",
+                "Green"
+              ]
+            },
+            {
+              "pair": [
+                "Blue",
+                "Orange"
+              ]
+            },
+            {
+              "pair": [
+                "Yellow",
+                "Purple"
+              ]
+            }
+          ],
+          "characteristics": [
+            "Maximum contrast",
+            "Vibrant",
+            "Eye-catching",
+            "Dramatic"
+          ],
+          "best_for": [
+            "CTAs",
+            "Sports branding",
+            "Attention-grabbing"
+          ],
+          "tips": [
+            "Make one dominant",
+            "Use accent sparingly",
+            "Avoid for large text"
+          ],
+          "warning": "Can be jarring if both colors used equally"
+        },
+        {
+          "id": "analogous",
+          "name": "Analogous",
+          "name_mn": "Зэргэлдээ өнгө",
+          "definition": "3 adjacent colors on wheel (30° apart)",
+          "examples": [
+            {
+              "colors": [
+                "Yellow",
+                "Yellow-Green",
+                "Green"
+              ]
+            },
+            {
+              "colors": [
+                "Blue",
+                "Blue-Purple",
+                "Purple"
+              ]
+            },
+            {
+              "colors": [
+                "Red",
+                "Red-Orange",
+                "Orange"
+              ]
+            }
+          ],
+          "characteristics": [
+            "Harmonious",
+            "Natural",
+            "Peaceful",
+            "Low contrast"
+          ],
+          "best_for": [
+            "Nature designs",
+            "Calm interfaces",
+            "Gradients"
+          ],
+          "tips": [
+            "Choose 1 dominant color",
+            "Others as accents",
+            "Add complementary accent for pop"
+          ],
+          "warning": "May lack contrast for important elements"
+        },
+        {
+          "id": "triadic",
+          "name": "Triadic",
+          "name_mn": "Гурвалжин",
+          "definition": "3 colors evenly spaced (120° apart)",
+          "examples": [
+            {
+              "colors": [
+                "Red",
+                "Yellow",
+                "Blue"
+              ]
+            },
+            {
+              "colors": [
+                "Orange",
+                "Green",
+                "Purple"
+              ]
+            }
+          ],
+          "characteristics": [
+            "Vibrant",
+            "Balanced",
+            "Playful",
+            "Bold"
+          ],
+          "best_for": [
+            "Children's products",
+            "Creative brands",
+            "Infographics"
+          ],
+          "tips": [
+            "Pick 1 hero color",
+            "Use others as accents",
+            "Try tints/shades"
+          ],
+          "warning": "Can be overwhelming if all at full saturation"
+        },
+        {
+          "id": "split_complementary",
+          "name": "Split-Complementary",
+          "name_mn": "Хуваасан эсрэг",
+          "definition": "Base color + 2 adjacent to its complement (150° & 210°)",
+          "examples": [
+            {
+              "colors": [
+                "Blue",
+                "Red-Orange",
+                "Yellow-Orange"
+              ]
+            },
+            {
+              "colors": [
+                "Red",
+                "Blue-Green",
+                "Yellow-Green"
+              ]
+            }
+          ],
+          "characteristics": [
+            "High contrast but less tension",
+            "Versatile",
+            "Balanced"
+          ],
+          "best_for": [
+            "Web design",
+            "Marketing",
+            "Brand identity"
+          ],
+          "tips": [
+            "Base = dominant",
+            "Two accents = supporting"
+          ],
+          "warning": "Requires careful balance of all three"
+        },
+        {
+          "id": "tetradic",
+          "name": "Tetradic / Rectangle",
+          "name_mn": "Дөрвөлжин",
+          "definition": "4 colors (2 complementary pairs)",
+          "types": {
+            "rectangle": "60° and 120° apart",
+            "square": "90° apart (equal spacing)"
+          },
+          "examples": [
+            {
+              "type": "rectangle",
+              "colors": [
+                "Red",
+                "Green",
+                "Blue-Purple",
+                "Yellow-Orange"
+              ]
+            },
+            {
+              "type": "square",
+              "colors": [
+                "Red",
+                "Yellow-Green",
+                "Blue",
+                "Red-Purple"
+              ]
+            }
+          ],
+          "characteristics": [
+            "Richest palette",
+            "Maximum variety",
+            "Complex"
+          ],
+          "best_for": [
+            "Google/Microsoft style logos",
+            "Data visualization",
+            "Multi-brand"
+          ],
+          "tips": [
+            "1 dominant color",
+            "Balance warm/cool",
+            "Use neutrals heavily"
+          ],
+          "warning": "Hardest to balance - requires skill"
+        },
+        {
+          "id": "monochromatic",
+          "name": "Monochromatic",
+          "name_mn": "Нэг өнгө",
+          "definition": "Tints, shades, and tones of one hue",
+          "examples": [
+            {
+              "base": "Blue",
+              "variations": [
+                "Navy",
+                "Blue",
+                "Light Blue",
+                "Sky Blue"
+              ]
+            }
+          ],
+          "characteristics": [
+            "Simplest",
+            "Elegant",
+            "Cohesive",
+            "Sophisticated"
+          ],
+          "best_for": [
+            "Minimalist design",
+            "Corporate branding",
+            "Single-brand identity"
+          ],
+          "tips": [
+            "Create strong value contrast",
+            "Use texture for interest"
+          ],
+          "warning": "May lack visual interest without contrast"
+        },
+        {
+          "id": "achromatic",
+          "name": "Achromatic",
+          "name_mn": "Өнгөгүй",
+          "definition": "No hue - only black, white, grays",
+          "colors": [
+            "Black",
+            "White",
+            "Gray variations"
+          ],
+          "characteristics": [
+            "Timeless",
+            "Classic",
+            "Professional",
+            "Neutral"
+          ],
+          "best_for": [
+            "Typography focus",
+            "Luxury brands",
+            "Photography showcase"
+          ],
+          "tips": [
+            "Use strong contrast",
+            "Consider adding one accent color"
+          ],
+          "warning": "Can feel cold or sterile"
+        }
+      ],
+      "color_rules": {
+        "60_30_10": {
+          "name": "60-30-10 Rule",
+          "distribution": {
+            "60%": {
+              "role": "Dominant",
+              "use": "Background, large areas",
+              "type": "Usually neutral"
+            },
+            "30%": {
+              "role": "Secondary",
+              "use": "Supporting elements, cards"
+            },
+            "10%": {
+              "role": "Accent",
+              "use": "CTAs, highlights, small pops"
+            }
+          }
+        },
+        "contrast_wcag": {
+          "normal_text": "4.5:1 ratio minimum",
+          "large_text": "3:1 ratio minimum",
+          "ui_components": "3:1 ratio minimum"
+        }
+      }
+    },
+    "typography": {
+      "id": "typography",
+      "name": "Typography",
+      "name_mn": "Үсгийн урлаг",
+      "description": "The art and technique of arranging type",
+      "font_categories": [
+        {
+          "id": "serif",
+          "name": "Serif",
+          "name_mn": "Сериф",
+          "characteristics": "Small lines at end of strokes",
+          "personality": [
+            "Traditional",
+            "Reliable",
+            "Respectable",
+            "Authoritative"
+          ],
+          "best_for": [
+            "Print",
+            "Long-form reading",
+            "Editorial",
+            "Luxury brands"
+          ],
+          "examples": [
+            "Times New Roman",
+            "Georgia",
+            "Garamond",
+            "Baskerville"
+          ]
+        },
+        {
+          "id": "sans_serif",
+          "name": "Sans-Serif",
+          "name_mn": "Санс-сериф",
+          "characteristics": "No decorative strokes",
+          "personality": [
+            "Modern",
+            "Clean",
+            "Friendly",
+            "Accessible"
+          ],
+          "best_for": [
+            "Digital screens",
+            "UI",
+            "Headlines",
+            "Tech brands"
+          ],
+          "examples": [
+            "Helvetica",
+            "Arial",
+            "Inter",
+            "SF Pro",
+            "Roboto"
+          ]
+        },
+        {
+          "id": "slab_serif",
+          "name": "Slab Serif",
+          "characteristics": "Thick, block-like serifs",
+          "personality": [
+            "Bold",
+            "Strong",
+            "Confident",
+            "Industrial"
+          ],
+          "best_for": [
+            "Headlines",
+            "Logos",
+            "Posters"
+          ],
+          "examples": [
+            "Rockwell",
+            "Courier",
+            "Roboto Slab"
+          ]
+        },
+        {
+          "id": "script",
+          "name": "Script",
+          "name_mn": "Гар бичмэл",
+          "characteristics": "Cursive, handwritten style",
+          "personality": [
+            "Elegant",
+            "Personal",
+            "Creative",
+            "Feminine"
+          ],
+          "best_for": [
+            "Invitations",
+            "Logos",
+            "Decorative text"
+          ],
+          "examples": [
+            "Pacifico",
+            "Dancing Script",
+            "Great Vibes"
+          ],
+          "warning": "Poor readability for body text"
+        },
+        {
+          "id": "display",
+          "name": "Display / Decorative",
+          "characteristics": "Unique, attention-grabbing",
+          "personality": [
+            "Creative",
+            "Unique",
+            "Expressive"
+          ],
+          "best_for": [
+            "Headlines only",
+            "Logos",
+            "Posters"
+          ],
+          "examples": [
+            "Impact",
+            "Lobster",
+            "Bebas Neue"
+          ],
+          "warning": "Never use for body text"
+        },
+        {
+          "id": "monospace",
+          "name": "Monospace",
+          "characteristics": "Equal width characters",
+          "personality": [
+            "Technical",
+            "Code-like",
+            "Precise"
+          ],
+          "best_for": [
+            "Code",
+            "Data",
+            "Technical content"
+          ],
+          "examples": [
+            "Courier",
+            "Fira Code",
+            "JetBrains Mono",
+            "SF Mono"
+          ]
+        }
+      ],
+      "typography_properties": {
+        "size": {
+          "body_text": "16px recommended minimum for web",
+          "scale_ratio": {
+            "minor_second": 1.067,
+            "major_second": 1.125,
+            "minor_third": 1.2,
+            "major_third": 1.25,
+            "perfect_fourth": 1.333,
+            "augmented_fourth": 1.414,
+            "perfect_fifth": 1.5,
+            "golden_ratio": 1.618
+          }
+        },
+        "line_height": {
+          "body_text": "1.4-1.6 recommended",
+          "headings": "1.1-1.3 recommended",
+          "formula": "text_size × 1.2-1.5"
+        },
+        "line_length": {
+          "optimal": "45-75 characters",
+          "ideal": "66 characters",
+          "note": "More leading for longer lines"
+        },
+        "letter_spacing": {
+          "body": "Normal (0)",
+          "headings": "Slightly tighter (-0.5 to -1%)",
+          "uppercase": "Add spacing (+2-5%)"
+        },
+        "weight": {
+          "thin": 100,
+          "extra_light": 200,
+          "light": 300,
+          "regular": 400,
+          "medium": 500,
+          "semi_bold": 600,
+          "bold": 700,
+          "extra_bold": 800,
+          "black": 900
+        }
+      },
+      "hierarchy": {
+        "levels": [
+          {
+            "level": "H1",
+            "use": "Page title",
+            "count": "1 per page"
+          },
+          {
+            "level": "H2",
+            "use": "Section headers",
+            "count": "Multiple"
+          },
+          {
+            "level": "H3",
+            "use": "Subsections",
+            "count": "Multiple"
+          },
+          {
+            "level": "H4-H6",
+            "use": "Further divisions",
+            "count": "As needed"
+          },
+          {
+            "level": "Body",
+            "use": "Main content",
+            "count": "Majority of text"
+          },
+          {
+            "level": "Caption",
+            "use": "Supporting text",
+            "count": "As needed"
+          }
+        ],
+        "methods": [
+          "Size contrast",
+          "Weight contrast",
+          "Color contrast",
+          "Spacing"
+        ]
+      },
+      "pairing_rules": {
+        "safe_combinations": [
+          {
+            "heading": "Serif",
+            "body": "Sans-serif"
+          },
+          {
+            "heading": "Sans-serif",
+            "body": "Serif"
+          },
+          {
+            "heading": "Display",
+            "body": "Sans-serif"
+          }
+        ],
+        "principles": [
+          "Contrast in style but harmony in mood",
+          "Limit to 2-3 fonts maximum",
+          "Consider x-height compatibility",
+          "Match the era/style of content"
+        ]
+      },
+      "masters": [
+        {
+          "name": "Robert Bringhurst",
+          "work": "The Elements of Typographic Style",
+          "principle": "Typography exists to honor content"
+        },
+        {
+          "name": "Jan Tschichold",
+          "work": "The New Typography",
+          "principle": "Asymmetry over symmetry, sans-serif for modernity"
+        }
+      ]
+    },
+    "layout_principles": {
+      "id": "layout",
+      "name": "Layout Principles",
+      "name_mn": "Layout зарчмууд",
+      "grid_systems": {
+        "types": [
+          {
+            "id": "column_grid",
+            "name": "Column Grid",
+            "description": "Vertical divisions of space",
+            "common_columns": [
+              12,
+              16,
+              24
+            ],
+            "use": "Web layouts, editorial"
+          },
+          {
+            "id": "modular_grid",
+            "name": "Modular Grid",
+            "description": "Rows and columns creating modules",
+            "use": "Complex layouts, dashboards"
+          },
+          {
+            "id": "hierarchical_grid",
+            "name": "Hierarchical Grid",
+            "description": "Organic, content-driven divisions",
+            "use": "Magazines, posters"
+          },
+          {
+            "id": "baseline_grid",
+            "name": "Baseline Grid",
+            "description": "Horizontal lines for text alignment",
+            "use": "Typography-heavy designs"
+          }
+        ],
+        "8_point_grid": {
+          "description": "All spacing and sizing in multiples of 8",
+          "values": [
+            8,
+            16,
+            24,
+            32,
+            40,
+            48,
+            56,
+            64,
+            72,
+            80
+          ],
+          "benefits": [
+            "Consistency",
+            "Scalability",
+            "Math simplicity"
+          ]
+        },
+        "muller_brockmann": {
+          "master": "Josef Müller-Brockmann",
+          "work": "Grid Systems in Graphic Design",
+          "principle": "Grid brings order to chaos",
+          "field_count_options": [
+            8,
+            12,
+            16,
+            20,
+            24,
+            32
+          ]
+        }
+      },
+      "alignment": {
+        "types": [
+          {
+            "type": "left",
+            "use": "Body text (LTR languages)",
+            "effect": "Natural, readable"
+          },
+          {
+            "type": "right",
+            "use": "RTL languages, special emphasis",
+            "effect": "Formal, unique"
+          },
+          {
+            "type": "center",
+            "use": "Headlines, short text",
+            "effect": "Formal, balanced"
+          },
+          {
+            "type": "justify",
+            "use": "Print, formal documents",
+            "effect": "Clean edges",
+            "warning": "Can create rivers"
+          }
+        ],
+        "principle": "Consistent alignment creates invisible structure"
+      },
+      "whitespace": {
+        "name_mn": "Хоосон зай",
+        "types": {
+          "macro": "Large spaces between major sections",
+          "micro": "Small spaces between elements (padding, margins)"
+        },
+        "functions": [
+          "Creates breathing room",
+          "Improves readability",
+          "Establishes hierarchy",
+          "Guides eye flow",
+          "Conveys luxury/quality"
+        ],
+        "kenya_hara_ma": {
+          "concept": "Ma (間)",
+          "meaning": "Emptiness as receptivity, not absence",
+          "principle": "White space is not empty - it's full of possibility"
+        }
+      },
+      "visual_weight": {
+        "factors": [
+          {
+            "factor": "Size",
+            "effect": "Larger = heavier"
+          },
+          {
+            "factor": "Color",
+            "effect": "Darker/saturated = heavier"
+          },
+          {
+            "factor": "Density",
+            "effect": "More detail = heavier"
+          },
+          {
+            "factor": "Position",
+            "effect": "Lower/right = heavier"
+          },
+          {
+            "factor": "Isolation",
+            "effect": "Alone = attracts attention"
+          }
+        ],
+        "balance_types": {
+          "symmetrical": "Equal weight on both sides - formal, stable",
+          "asymmetrical": "Unequal but balanced - dynamic, interesting"
+        }
+      },
+      "proportions": {
+        "golden_ratio": {
+          "value": 1.618,
+          "symbol": "φ (phi)",
+          "applications": [
+            "Layout divisions",
+            "Typography scale",
+            "Image cropping"
+          ]
+        },
+        "rule_of_thirds": {
+          "description": "Divide into 3x3 grid, place focal points at intersections",
+          "use": "Photography, composition"
+        },
+        "fibonacci": {
+          "sequence": [
+            1,
+            1,
+            2,
+            3,
+            5,
+            8,
+            13,
+            21,
+            34,
+            55,
+            89
+          ],
+          "use": "Spacing scale, sizing scale"
+        }
+      }
+    },
+    "spacing_system": {
+      "id": "spacing",
+      "name": "Spacing System",
+      "name_mn": "Зайн систем",
+      "base_unit": 8,
+      "scale": {
+        "xxs": {
+          "value": 4,
+          "use": "Micro adjustments"
+        },
+        "xs": {
+          "value": 8,
+          "use": "Tight spacing, inline elements"
+        },
+        "sm": {
+          "value": 16,
+          "use": "Related elements"
+        },
+        "md": {
+          "value": 24,
+          "use": "Standard spacing"
+        },
+        "lg": {
+          "value": 32,
+          "use": "Section spacing"
+        },
+        "xl": {
+          "value": 48,
+          "use": "Major sections"
+        },
+        "xxl": {
+          "value": 64,
+          "use": "Page sections"
+        },
+        "xxxl": {
+          "value": 96,
+          "use": "Hero areas"
+        }
+      },
+      "application": {
+        "padding": "Internal spacing within elements",
+        "margin": "External spacing between elements",
+        "gap": "Spacing between flex/grid children"
+      },
+      "principles": [
+        "Related items = less space",
+        "Unrelated items = more space",
+        "Use consistent scale throughout",
+        "Increase spacing for larger viewports"
+      ]
+    },
+    "visual_hierarchy": {
+      "id": "hierarchy",
+      "name": "Visual Hierarchy",
+      "name_mn": "Визуал шатлал",
+      "methods": [
+        {
+          "method": "Size",
+          "principle": "Larger = more important",
+          "application": "Headlines > Subheads > Body"
+        },
+        {
+          "method": "Color",
+          "principle": "Higher contrast = more attention",
+          "application": "Primary color for CTAs"
+        },
+        {
+          "method": "Weight",
+          "principle": "Bolder = more emphasis",
+          "application": "Bold for key information"
+        },
+        {
+          "method": "Position",
+          "principle": "Top-left gets seen first (F-pattern)",
+          "application": "Logo top-left, CTA prominent"
+        },
+        {
+          "method": "Spacing",
+          "principle": "More space = more importance",
+          "application": "Hero sections with ample whitespace"
+        },
+        {
+          "method": "Depth",
+          "principle": "Shadows/elevation = foreground",
+          "application": "Modal dialogs, floating buttons"
+        }
+      ],
+      "reading_patterns": {
+        "f_pattern": {
+          "description": "Eyes scan in F shape",
+          "use": "Text-heavy pages, articles"
+        },
+        "z_pattern": {
+          "description": "Eyes scan in Z shape",
+          "use": "Landing pages, minimal content"
+        },
+        "gutenberg": {
+          "description": "Primary optical area top-left, terminal area bottom-right",
+          "use": "Print, formal layouts"
+        }
+      },
+      "levels": [
+        {
+          "level": 1,
+          "name": "Primary",
+          "example": "Main headline, hero text"
+        },
+        {
+          "level": 2,
+          "name": "Secondary",
+          "example": "Section headers, CTAs"
+        },
+        {
+          "level": 3,
+          "name": "Tertiary",
+          "example": "Subheadings, captions"
+        },
+        {
+          "level": 4,
+          "name": "Body",
+          "example": "Paragraph text"
+        },
+        {
+          "level": 5,
+          "name": "Meta",
+          "example": "Timestamps, small print"
+        }
+      ]
+    },
+    "composition": {
+      "id": "composition",
+      "name": "Composition",
+      "name_mn": "Зохион байгуулалт",
+      "principles": [
+        {
+          "name": "Unity",
+          "name_mn": "Нэгдмэл байдал",
+          "description": "All elements feel like they belong together",
+          "how": "Consistent colors, fonts, spacing, style"
+        },
+        {
+          "name": "Contrast",
+          "name_mn": "Ялгаа",
+          "description": "Differences that create visual interest",
+          "how": "Size, color, shape, texture differences"
+        },
+        {
+          "name": "Balance",
+          "name_mn": "Тэнцвэр",
+          "description": "Visual stability through weight distribution",
+          "how": "Symmetrical or asymmetrical arrangement"
+        },
+        {
+          "name": "Emphasis",
+          "name_mn": "Онцлох",
+          "description": "Focal point that draws attention",
+          "how": "Size, color, isolation, contrast"
+        },
+        {
+          "name": "Rhythm",
+          "name_mn": "Хэмнэл",
+          "description": "Repetition creating movement and pattern",
+          "how": "Repeating elements with variation"
+        },
+        {
+          "name": "Movement",
+          "name_mn": "Хөдөлгөөн",
+          "description": "Guiding the eye through the design",
+          "how": "Lines, shapes, color flow"
+        },
+        {
+          "name": "Proportion",
+          "name_mn": "Харьцаа",
+          "description": "Size relationships between elements",
+          "how": "Golden ratio, scales, grids"
+        }
+      ],
+      "focal_point_techniques": [
+        "Size contrast",
+        "Color contrast",
+        "Isolation (negative space)",
+        "Leading lines pointing to it",
+        "Breaking the pattern",
+        "Human faces/eyes"
+      ]
+    },
+    "emotional_design": {
+      "id": "emotional",
+      "name": "Emotional Design",
+      "name_mn": "Сэтгэл хөдлөлийн дизайн",
+      "source": "Don Norman",
+      "work": "Emotional Design",
+      "three_levels": [
+        {
+          "level": "Visceral",
+          "name_mn": "Зүрхний",
+          "description": "Immediate, instinctive reaction",
+          "timing": "First impression, instant",
+          "influenced_by": [
+            "Color",
+            "Shape",
+            "Texture",
+            "Sound"
+          ],
+          "design_goal": "Look and feel attractive",
+          "example": "Beautiful product packaging"
+        },
+        {
+          "level": "Behavioral",
+          "name_mn": "Үйл хөдлөлийн",
+          "description": "Experience during use",
+          "timing": "While interacting",
+          "influenced_by": [
+            "Usability",
+            "Function",
+            "Performance",
+            "Feedback"
+          ],
+          "design_goal": "Work well, feel good to use",
+          "example": "Smooth, responsive interface"
+        },
+        {
+          "level": "Reflective",
+          "name_mn": "Тунгаамжийн",
+          "description": "Memory and meaning after use",
+          "timing": "After the experience",
+          "influenced_by": [
+            "Personal significance",
+            "Self-image",
+            "Story",
+            "Values"
+          ],
+          "design_goal": "Create lasting positive memories",
+          "example": "Products that become part of identity"
+        }
+      ],
+      "norman_principles": {
+        "affordance": {
+          "definition": "Visual cues suggesting how to use something",
+          "example": "Button looking pressable"
+        },
+        "signifiers": {
+          "definition": "Signals indicating where action should occur",
+          "example": "Door handle placement"
+        },
+        "constraints": {
+          "definition": "Limiting actions to prevent errors",
+          "example": "Grayed out buttons"
+        },
+        "mappings": {
+          "definition": "Relationship between controls and effects",
+          "example": "Stove dial position matching burner position"
+        },
+        "feedback": {
+          "definition": "Immediate response to actions",
+          "example": "Button press animation"
+        },
+        "conceptual_model": {
+          "definition": "User's understanding of how something works",
+          "example": "File/folder metaphor"
+        }
+      }
+    },
+    "accessibility": {
+      "id": "accessibility",
+      "name": "Accessibility",
+      "name_mn": "Хүртээмж",
+      "wcag_levels": {
+        "A": "Minimum level",
+        "AA": "Standard requirement (most laws)",
+        "AAA": "Highest level"
+      },
+      "color_contrast": {
+        "normal_text": {
+          "ratio": "4.5:1",
+          "level": "AA"
+        },
+        "large_text": {
+          "ratio": "3:1",
+          "level": "AA",
+          "size": "18pt+ or 14pt bold"
+        },
+        "enhanced_normal": {
+          "ratio": "7:1",
+          "level": "AAA"
+        },
+        "enhanced_large": {
+          "ratio": "4.5:1",
+          "level": "AAA"
+        },
+        "ui_components": {
+          "ratio": "3:1",
+          "level": "AA"
+        }
+      },
+      "color_blindness": {
+        "types": [
+          {
+            "name": "Protanopia",
+            "affects": "Red",
+            "percentage": "1% males"
+          },
+          {
+            "name": "Deuteranopia",
+            "affects": "Green",
+            "percentage": "1% males"
+          },
+          {
+            "name": "Tritanopia",
+            "affects": "Blue",
+            "percentage": "0.01%"
+          },
+          {
+            "name": "Achromatopsia",
+            "affects": "All color",
+            "percentage": "0.003%"
+          }
+        ],
+        "design_tips": [
+          "Don't rely on color alone",
+          "Use patterns/textures as secondary cue",
+          "Test with color blindness simulators",
+          "Ensure sufficient value contrast"
+        ]
+      },
+      "font_accessibility": {
+        "minimum_size": "16px for body text",
+        "line_height": "1.5 minimum",
+        "line_length": "80 characters maximum",
+        "font_choice": "Sans-serif generally more readable"
+      },
+      "focus_states": {
+        "requirement": "Visible focus indicator",
+        "minimum_size": "At least 2px outline or equivalent",
+        "contrast": "Must be distinguishable from unfocused state"
+      },
+      "touch_targets": {
+        "minimum": "44x44px (WCAG)",
+        "recommended": "48x48px (Material Design)",
+        "spacing": "8px minimum between targets"
+      }
+    },
+    "ux_principles": {
+      "id": "ux",
+      "name": "UX Principles",
+      "name_mn": "UX зарчмууд",
+      "core_principles": [
+        {
+          "name": "Consistency",
+          "description": "Same patterns throughout the experience",
+          "application": "Button styles, navigation, terminology"
+        },
+        {
+          "name": "Feedback",
+          "description": "Inform users about what's happening",
+          "application": "Loading states, success/error messages"
+        },
+        {
+          "name": "Efficiency",
+          "description": "Allow users to accomplish tasks quickly",
+          "application": "Shortcuts, defaults, auto-fill"
+        },
+        {
+          "name": "Forgiveness",
+          "description": "Easy to recover from errors",
+          "application": "Undo, confirmation dialogs, clear error messages"
+        },
+        {
+          "name": "Learnability",
+          "description": "Easy to learn for new users",
+          "application": "Familiar patterns, progressive disclosure"
+        }
+      ],
+      "cognitive_load": {
+        "definition": "Mental effort required to use interface",
+        "reduction_techniques": [
+          "Chunking information",
+          "Progressive disclosure",
+          "Recognition over recall",
+          "Clear visual hierarchy",
+          "Consistent patterns"
+        ]
+      },
+      "hicks_law": {
+        "definition": "Time to decide increases with number of choices",
+        "application": "Limit options, categorize choices, highlight recommended"
+      },
+      "fitts_law": {
+        "definition": "Time to reach target depends on distance and size",
+        "application": "Make important buttons large and accessible"
+      },
+      "millers_law": {
+        "definition": "Average person can hold 7±2 items in working memory",
+        "application": "Chunk content, limit nav items, use progressive disclosure"
+      }
+    },
+    "design_books": {
+      "id": "books",
+      "name": "Classic Design Books",
+      "name_mn": "Дизайны сонгодог номууд",
+      "books": [
+        {
+          "id": "design_everyday_things",
+          "title": "The Design of Everyday Things",
+          "author": "Don Norman",
+          "year": 1988,
+          "category": "Human-Centered Design",
+          "key_concepts": [
+            {
+              "concept": "Affordance",
+              "description": "Visual cues suggesting use"
+            },
+            {
+              "concept": "Signifiers",
+              "description": "Signals for action location"
+            },
+            {
+              "concept": "Mapping",
+              "description": "Control-effect relationships"
+            },
+            {
+              "concept": "Feedback",
+              "description": "Immediate response to actions"
+            },
+            {
+              "concept": "Constraints",
+              "description": "Limiting possible actions"
+            },
+            {
+              "concept": "Conceptual Model",
+              "description": "User's mental model"
+            }
+          ],
+          "frameworks": {
+            "gulf_of_execution": "Gap between intention and action",
+            "gulf_of_evaluation": "Gap between action result and understanding"
+          },
+          "quote": "Design is really an act of communication"
+        },
+        {
+          "id": "emotional_design",
+          "title": "Emotional Design",
+          "author": "Don Norman",
+          "year": 2004,
+          "category": "Emotional Design",
+          "key_concepts": [
+            {
+              "level": "Visceral",
+              "description": "Instant sensory reaction"
+            },
+            {
+              "level": "Behavioral",
+              "description": "Usability during use"
+            },
+            {
+              "level": "Reflective",
+              "description": "Meaning and memory after"
+            }
+          ],
+          "quote": "Attractive things work better"
+        },
+        {
+          "id": "designing_design",
+          "title": "Designing Design",
+          "author": "Kenya Hara",
+          "year": 2007,
+          "category": "Japanese Design Philosophy",
+          "key_concepts": [
+            {
+              "concept": "Re-design",
+              "description": "Making familiar unfamiliar"
+            },
+            {
+              "concept": "Senseware",
+              "description": "Engaging all senses"
+            },
+            {
+              "concept": "Exformation",
+              "description": "Making known unknown"
+            },
+            {
+              "concept": "Emptiness",
+              "description": "Receptive space for meaning"
+            }
+          ],
+          "philosophy": "Design is not about solving but about discovering",
+          "quote": "Design begins from finding a problem"
+        },
+        {
+          "id": "white",
+          "title": "White",
+          "author": "Kenya Hara",
+          "year": 2008,
+          "category": "Japanese Design Philosophy",
+          "key_concepts": [
+            {
+              "concept": "White as emptiness",
+              "description": "Not absence but receptivity"
+            },
+            {
+              "concept": "Ma (間)",
+              "description": "Meaningful negative space"
+            },
+            {
+              "concept": "Simplicity",
+              "description": "Subtraction as addition"
+            }
+          ],
+          "quote": "White is not a color but a way of perceiving"
+        },
+        {
+          "id": "vignelli_canon",
+          "title": "The Vignelli Canon",
+          "author": "Massimo Vignelli",
+          "year": 2009,
+          "category": "Modernist Design",
+          "key_concepts": {
+            "intangibles": [
+              "Semantics",
+              "Syntactics",
+              "Pragmatics",
+              "Discipline",
+              "Appropriateness",
+              "Ambiguity",
+              "Design is One",
+              "Visual Power",
+              "Intellectual Elegance",
+              "Timelessness",
+              "Responsibility",
+              "Equity"
+            ],
+            "tangibles": [
+              "Paper sizes",
+              "Grids",
+              "Margins",
+              "Columns",
+              "Type size",
+              "Typefaces",
+              "Flush left",
+              "Uppercase",
+              "Lowercase",
+              "Tracking",
+              "Leading",
+              "Scale"
+            ]
+          },
+          "famous_rule": "Use only 4-5 typefaces: Garamond, Bodoni, Century, Helvetica, Futura",
+          "quote": "If you can design one thing, you can design everything"
+        },
+        {
+          "id": "grid_systems",
+          "title": "Grid Systems in Graphic Design",
+          "author": "Josef Müller-Brockmann",
+          "year": 1981,
+          "category": "Swiss Style",
+          "key_concepts": [
+            {
+              "concept": "Grid as order",
+              "description": "Systematic organization"
+            },
+            {
+              "concept": "Modular construction",
+              "description": "Flexible units"
+            },
+            {
+              "concept": "Objective design",
+              "description": "Universal communication"
+            }
+          ],
+          "grid_guidance": {
+            "field_counts": [
+              8,
+              12,
+              16,
+              20,
+              24,
+              32
+            ],
+            "proportions": "Based on content requirements"
+          },
+          "quote": "The grid is an aid, not a guarantee"
+        },
+        {
+          "id": "thinking_with_type",
+          "title": "Thinking with Type",
+          "author": "Ellen Lupton",
+          "year": 2004,
+          "category": "Typography",
+          "sections": [
+            "Letter",
+            "Text",
+            "Grid"
+          ],
+          "key_concepts": [
+            "Type anatomy",
+            "Hierarchy",
+            "Line spacing",
+            "Grids for text"
+          ],
+          "quote": "Typography is what language looks like"
+        },
+        {
+          "id": "art_of_color",
+          "title": "The Art of Color",
+          "author": "Johannes Itten",
+          "year": 1961,
+          "category": "Color Theory",
+          "seven_contrasts": [
+            "Hue contrast",
+            "Light-dark contrast",
+            "Cold-warm contrast",
+            "Complementary contrast",
+            "Simultaneous contrast",
+            "Saturation contrast",
+            "Extension contrast"
+          ],
+          "color_circle": {
+            "primary": [
+              "Red",
+              "Yellow",
+              "Blue"
+            ],
+            "secondary": [
+              "Orange",
+              "Green",
+              "Violet"
+            ],
+            "tertiary": 6
+          },
+          "goethe_ratios": {
+            "Yellow": 3,
+            "Orange": 4,
+            "Red": 6,
+            "Violet": 9,
+            "Blue": 8,
+            "Green": 6
+          }
+        },
+        {
+          "id": "things_learned",
+          "title": "Things I Have Learned in My Life So Far",
+          "author": "Stefan Sagmeister",
+          "year": 2008,
+          "category": "Experimental Design",
+          "key_concepts": [
+            "Personal expression in design",
+            "Material as message",
+            "Environment as context",
+            "Blur art/design boundary"
+          ],
+          "maxims": [
+            "Worrying solves nothing",
+            "Trying to look good limits my life",
+            "Keeping a diary supports personal development"
+          ]
+        },
+        {
+          "id": "less_but_better",
+          "title": "Less But Better",
+          "author": "Dieter Rams",
+          "year": 1995,
+          "category": "Industrial Design",
+          "ten_principles": [
+            {
+              "number": 1,
+              "principle": "Good design is innovative"
+            },
+            {
+              "number": 2,
+              "principle": "Good design makes a product useful"
+            },
+            {
+              "number": 3,
+              "principle": "Good design is aesthetic"
+            },
+            {
+              "number": 4,
+              "principle": "Good design makes a product understandable"
+            },
+            {
+              "number": 5,
+              "principle": "Good design is unobtrusive"
+            },
+            {
+              "number": 6,
+              "principle": "Good design is honest"
+            },
+            {
+              "number": 7,
+              "principle": "Good design is long-lasting"
+            },
+            {
+              "number": 8,
+              "principle": "Good design is thorough down to the last detail"
+            },
+            {
+              "number": 9,
+              "principle": "Good design is environmentally friendly"
+            },
+            {
+              "number": 10,
+              "principle": "Good design is as little design as possible"
+            }
+          ],
+          "philosophy": "Weniger, aber besser (Less, but better)",
+          "influence": "Apple, Jony Ive"
+        },
+        {
+          "id": "thoughts_on_design",
+          "title": "Thoughts on Design",
+          "author": "Paul Rand",
+          "year": 1947,
+          "category": "Graphic Design",
+          "key_concepts": [
+            "Form and function integration",
+            "Symbol power in advertising",
+            "Reader participation",
+            "Visual unity"
+          ],
+          "logos": [
+            "IBM",
+            "ABC",
+            "UPS",
+            "NeXT",
+            "Westinghouse"
+          ],
+          "quote": "Don't try to be original, try to be good"
+        },
+        {
+          "id": "new_typography",
+          "title": "The New Typography",
+          "author": "Jan Tschichold",
+          "year": 1928,
+          "category": "Modernist Typography",
+          "key_concepts": [
+            {
+              "concept": "Asymmetry over symmetry",
+              "reason": "More dynamic"
+            },
+            {
+              "concept": "Sans-serif",
+              "reason": "Modern, clean"
+            },
+            {
+              "concept": "Functional design",
+              "reason": "Purpose-driven"
+            },
+            {
+              "concept": "Standardization",
+              "reason": "Paper sizes, type sizes"
+            }
+          ],
+          "later_evolution": "Returned to classicism, Penguin Books redesign"
+        },
+        {
+          "id": "elements_typographic_style",
+          "title": "The Elements of Typographic Style",
+          "author": "Robert Bringhurst",
+          "year": 1992,
+          "category": "Typography",
+          "status": "Typographer's Bible",
+          "key_concepts": [
+            "Typography exists to honor content",
+            "Rhythm and proportion",
+            "Harmony and counterpoint"
+          ],
+          "guidelines": {
+            "line_length": "45-75 characters, 66 ideal",
+            "leading": "Text size × 1.2-1.5",
+            "philosophy": "Creative non-interference"
+          }
+        },
+        {
+          "id": "interaction_of_color",
+          "title": "Interaction of Color",
+          "author": "Josef Albers",
+          "year": 1963,
+          "category": "Color Theory",
+          "central_thesis": "Color is the most relative medium in art",
+          "key_concepts": [
+            "Context determines perception",
+            "Same color appears different based on surroundings",
+            "Practice before theory"
+          ],
+          "phenomena": [
+            "Simultaneous contrast",
+            "Transparency illusion",
+            "Vibrating boundaries",
+            "Color quantity effects"
+          ],
+          "legacy": "Homage to the Square series"
+        }
+      ]
+    },
+    "design_masters": {
+      "id": "masters",
+      "name": "Design Masters",
+      "name_mn": "Дизайны мастерууд",
+      "masters": [
+        {
+          "name": "Dieter Rams",
+          "nationality": "German",
+          "era": "1950s-1990s",
+          "field": "Industrial Design",
+          "company": "Braun",
+          "style": "Functionalism, Minimalism",
+          "contribution": "10 Principles of Good Design",
+          "influence": [
+            "Apple",
+            "Jony Ive"
+          ]
+        },
+        {
+          "name": "Massimo Vignelli",
+          "nationality": "Italian-American",
+          "era": "1960s-2010s",
+          "field": "Graphic Design",
+          "works": [
+            "NYC Subway map",
+            "American Airlines logo",
+            "Bloomingdale's"
+          ],
+          "style": "Modernism, Grid systems",
+          "contribution": "Design is One philosophy"
+        },
+        {
+          "name": "Kenya Hara",
+          "nationality": "Japanese",
+          "era": "1990s-present",
+          "field": "Graphic Design",
+          "company": "MUJI Art Director",
+          "style": "Emptiness, Sensory design",
+          "contribution": "Ma (間) in modern design"
+        },
+        {
+          "name": "Paul Rand",
+          "nationality": "American",
+          "era": "1930s-1990s",
+          "field": "Graphic Design, Logo Design",
+          "logos": [
+            "IBM",
+            "ABC",
+            "UPS",
+            "NeXT"
+          ],
+          "style": "Modernism, Wit",
+          "contribution": "Corporate identity design"
+        },
+        {
+          "name": "Stefan Sagmeister",
+          "nationality": "Austrian-American",
+          "era": "1980s-present",
+          "field": "Graphic Design",
+          "style": "Experimental, Personal",
+          "contribution": "Blurring art and design"
+        },
+        {
+          "name": "Josef Müller-Brockmann",
+          "nationality": "Swiss",
+          "era": "1950s-1990s",
+          "field": "Graphic Design",
+          "style": "Swiss Style, Grid systems",
+          "contribution": "Grid Systems in Graphic Design"
+        },
+        {
+          "name": "Jan Tschichold",
+          "nationality": "German",
+          "era": "1920s-1970s",
+          "field": "Typography",
+          "works": [
+            "The New Typography",
+            "Penguin Books"
+          ],
+          "style": "Modernism → Classicism",
+          "contribution": "Modern typography rules"
+        },
+        {
+          "name": "Don Norman",
+          "nationality": "American",
+          "era": "1980s-present",
+          "field": "UX/Cognitive Science",
+          "companies": [
+            "Apple",
+            "Nielsen Norman Group"
+          ],
+          "style": "Human-centered design",
+          "contribution": "User experience as discipline"
+        }
+      ]
+    },
+    "design_trends": {
+      "id": "trends",
+      "name": "Design Trends 2024-2025",
+      "name_mn": "Дизайны чиг хандлага 2024-2025",
+      "industry_state": {
+        "challenges": [
+          "Growth teams taking over design systems",
+          "Optimizing for clicks, not clarity",
+          "Trading empathy for algorithms",
+          "AI automation concerns"
+        ],
+        "opportunities": [
+          "Strategy skills more valuable",
+          "Research skills essential",
+          "Human-AI collaboration",
+          "New role definitions"
+        ],
+        "job_market": {
+          "sentiment": "45% feel declined vs 2023",
+          "ai_optimism": "56% optimistic about AI in design"
+        }
+      },
+      "visual_trends": {
+        "ui_ux": [
+          {
+            "trend": "AI-Integrated Design",
+            "description": "AI visual language with gradients, sparkles",
+            "warning": "Avoid adding AI for hype only"
+          },
+          {
+            "trend": "Bento Grid Layouts",
+            "description": "Modular, Apple-inspired grids",
+            "use": "Dashboards, feature showcases"
+          },
+          {
+            "trend": "3D Elements",
+            "description": "Immersive, accessible 3D",
+            "use": "Storytelling, navigation"
+          },
+          {
+            "trend": "Complex Animations",
+            "description": "Scroll-triggered, cursor-based effects",
+            "use": "Engagement, micro-interactions"
+          },
+          {
+            "trend": "Bold Typography",
+            "description": "Big, bold, capitalized",
+            "use": "Headlines, brand positioning"
+          },
+          {
+            "trend": "Scrollytelling",
+            "description": "Interactive narrative scrolling",
+            "use": "Long-form content, portfolios"
+          }
+        ],
+        "graphic": [
+          {
+            "trend": "Neo-Brutalism",
+            "description": "Raw, bold, unapologetic",
+            "characteristics": [
+              "Bright colors",
+              "Thick borders",
+              "Intentional chaos"
+            ]
+          },
+          {
+            "trend": "Anti-Design",
+            "description": "Deliberately breaking rules",
+            "note": "Requires deep design knowledge"
+          },
+          {
+            "trend": "Maximalism",
+            "description": "Rich, layered compositions",
+            "contrast": "Minimalism counterbalance"
+          },
+          {
+            "trend": "Glitch Art",
+            "description": "Digital errors as features",
+            "meaning": "Commentary on digital existence"
+          },
+          {
+            "trend": "Organic/Fluid Shapes",
+            "description": "Natural, breathing forms",
+            "use": "Wellness, sustainability brands"
+          },
+          {
+            "trend": "Retro Revival",
+            "description": "1950s-1980s with modern twist",
+            "includes": "Neo-Psychedelia"
+          }
+        ]
+      },
+      "ai_designer_debate": {
+        "statistics": {
+          "organizations_using_ai": "88%",
+          "new_jobs_by_2030": "170 million",
+          "jobs_displaced": "92 million",
+          "net_gain": "78 million"
+        },
+        "ai_capabilities": [
+          "Repetitive task automation",
+          "Image generation",
+          "Layout suggestions",
+          "Color palette generation"
+        ],
+        "human_advantages": [
+          "Emotional intelligence",
+          "Cultural understanding",
+          "Strategic thinking",
+          "Brand intuition",
+          "Complex problem-solving"
+        ],
+        "consensus": "Designer + AI = Best results"
+      },
+      "trend_cycles": {
+        "pendulum_pairs": [
+          [
+            "Minimalism",
+            "Maximalism"
+          ],
+          [
+            "Polished",
+            "Raw/Brutalist"
+          ],
+          [
+            "Digital",
+            "Organic/Natural"
+          ],
+          [
+            "AI-generated",
+            "Human-crafted"
+          ]
+        ],
+        "cycle_length": "~7 years"
+      }
+    },
+    "design_philosophy": {
+      "id": "philosophy",
+      "name": "Design Philosophy",
+      "name_mn": "Дизайны философи",
+      "eastern": {
+        "wabi_sabi": {
+          "origin": "Japanese",
+          "meaning": "Beauty in imperfection",
+          "application": "Embrace organic textures, asymmetry"
+        },
+        "ma": {
+          "origin": "Japanese (間)",
+          "meaning": "Meaningful negative space",
+          "application": "Whitespace as active element"
+        },
+        "kintsugi": {
+          "origin": "Japanese",
+          "meaning": "Golden repair, honoring breaks",
+          "application": "Highlighting rather than hiding repairs"
+        }
+      },
+      "western": {
+        "bauhaus": {
+          "origin": "German, 1919",
+          "principle": "Form follows function",
+          "application": "Purpose-driven design"
+        },
+        "swiss_style": {
+          "origin": "Swiss, 1950s",
+          "principle": "Objective, universal communication",
+          "application": "Grids, sans-serif, clarity"
+        },
+        "modernism": {
+          "principle": "Less is more",
+          "application": "Reduce to essentials"
+        }
+      },
+      "timeless_principles": [
+        "User needs first",
+        "Clear communication",
+        "Appropriate context",
+        "Emotional resonance",
+        "Functional excellence",
+        "Accessibility",
+        "Ethical practice"
+      ]
+    },
+    "resources": {
+      "id": "resources",
+      "name": "Design Resources",
+      "inspiration": [
+        {
+          "name": "Awwwards",
+          "url": "awwwards.com",
+          "type": "Web design"
+        },
+        {
+          "name": "Dribbble",
+          "url": "dribbble.com",
+          "type": "UI/Visual"
+        },
+        {
+          "name": "Behance",
+          "url": "behance.net",
+          "type": "All design"
+        },
+        {
+          "name": "Mobbin",
+          "url": "mobbin.com",
+          "type": "Mobile patterns"
+        },
+        {
+          "name": "Landbook",
+          "url": "land-book.com",
+          "type": "Landing pages"
+        }
+      ],
+      "color_tools": [
+        {
+          "name": "Adobe Color",
+          "url": "color.adobe.com"
+        },
+        {
+          "name": "Coolors",
+          "url": "coolors.co"
+        },
+        {
+          "name": "Khroma",
+          "url": "khroma.co",
+          "note": "AI-powered"
+        },
+        {
+          "name": "Paletton",
+          "url": "paletton.com"
+        }
+      ],
+      "typography_tools": [
+        {
+          "name": "Google Fonts",
+          "url": "fonts.google.com"
+        },
+        {
+          "name": "Fontpair",
+          "url": "fontpair.co"
+        },
+        {
+          "name": "Type Scale",
+          "url": "typescale.com"
+        }
+      ],
+      "design_tools": [
+        {
+          "name": "Figma",
+          "type": "UI/UX"
+        },
+        {
+          "name": "Framer",
+          "type": "Prototyping"
+        },
+        {
+          "name": "Adobe CC",
+          "type": "Creative Suite"
+        },
+        {
+          "name": "Sketch",
+          "type": "UI Design"
+        }
+      ],
+      "ai_tools": [
+        {
+          "name": "Midjourney",
+          "type": "Image generation"
+        },
+        {
+          "name": "DALL-E",
+          "type": "Image generation"
+        },
+        {
+          "name": "Adobe Firefly",
+          "type": "Image generation"
+        },
+        {
+          "name": "Framer AI",
+          "type": "Web design"
+        }
+      ]
+    },
+    "reko_philosophy": {
+      "id": "reko_philosophy",
+      "name": "Reko's Design Philosophy",
+      "name_mn": "Рекогийн дизайны философи",
+      "description": "Personal design principles developed through 15 years of experience",
+      "core_philosophy": {
+        "motto": "Better than yesterday",
+        "motto_mn": "Өчигдрөөс дээр",
+        "ultimate_goal": "Create designs that inspire human action and influence philosophy",
+        "approach": "Research-heavy process - spend most time studying before executing"
+      },
+      "visual_style": {
+        "primary_characteristics": [
+          {
+            "name": "Dynamic Tension",
+            "name_mn": "Динамик хүчдэл",
+            "description": "Prefer dynamic tension over perfect balance",
+            "effect": "Creates energy and interest without chaos"
+          },
+          {
+            "name": "Unified Element Shapes",
+            "name_mn": "Нэгдмэл хэлбэрүүд",
+            "description": "Elements should share cohesive shape language",
+            "effect": "Visual harmony while maintaining variety"
+          },
+          {
+            "name": "Soft Color Transitions",
+            "name_mn": "Зөөлөн өнгө шилжилт",
+            "description": "No hard color boundaries, smooth gradients",
+            "effect": "Elegant, refined aesthetic"
+          },
+          {
+            "name": "Minimal with Deep Emotion",
+            "name_mn": "Энгийн гэхдээ гүн сэтгэл хөдлөлтэй",
+            "description": "Reduce to essentials but maintain emotional resonance",
+            "effect": "Impactful without being overwhelming"
+          },
+          {
+            "name": "Interesting Elements",
+            "name_mn": "Сонирхолтой элементүүд",
+            "description": "Avoid boring or melancholic - include engaging details",
+            "effect": "Prevents designs from feeling empty or lifeless"
+          }
+        ],
+        "avoid": [
+          "Perfectly balanced/symmetrical compositions",
+          "Hard color boundaries",
+          "Overly uniform designs",
+          "Pure minimalism without emotion",
+          "Boring or melancholic aesthetics"
+        ]
+      },
+      "philosophical_influences": {
+        "eastern": [
+          {
+            "concept": "Wabi-Sabi",
+            "application": "Embrace imperfection and organic qualities"
+          },
+          {
+            "concept": "Ma (間)",
+            "application": "Meaningful negative space as active element"
+          },
+          {
+            "concept": "Kintsugi",
+            "application": "Highlight rather than hide - celebrate the journey"
+          }
+        ],
+        "emotional_design": {
+          "source": "Don Norman's Emotional Design",
+          "application": "Design for visceral, behavioral, and reflective responses"
+        }
+      },
+      "design_masters_inspiration": [
+        {
+          "name": "Kenya Hara",
+          "takeaway": "Emptiness as possibility, sensory design"
+        },
+        {
+          "name": "Stefan Sagmeister",
+          "takeaway": "Personal expression, experimentation"
+        },
+        {
+          "name": "Massimo Vignelli",
+          "takeaway": "Grid systems, visual power, timelessness"
+        }
+      ],
+      "trend_approach": {
+        "philosophy": "Follow principles over trends",
+        "cycle_awareness": "Understand ~7 year trend cycles",
+        "goal": "Create hybrid styles that transcend current movements",
+        "pendulum_effect": {
+          "description": "Recognize trend opposites swing back",
+          "examples": [
+            [
+              "Minimalism",
+              "Maximalism"
+            ],
+            [
+              "Flat",
+              "Skeuomorphic"
+            ],
+            [
+              "Clean",
+              "Brutalist"
+            ]
+          ]
+        }
+      },
+      "learning_style": {
+        "preference": "Visual observation over reading documentation",
+        "sources": [
+          "Instagram",
+          "Awwwards",
+          "YouTube",
+          "Design legends' work"
+        ],
+        "method": "Study references extensively before executing"
+      },
+      "design_eye_principles": {
+        "what_to_look_for": [
+          "Elements that work cohesively",
+          "Dynamic tension in composition",
+          "Emotional depth beneath surface",
+          "Interesting details that engage",
+          "Unified visual language"
+        ],
+        "what_to_avoid": [
+          "Overly uniform compositions",
+          "Designs that feel 'too perfect'",
+          "Empty minimalism",
+          "Lack of visual interest",
+          "Disconnected elements"
+        ]
+      },
+      "color_preferences": {
+        "style": "Dark themes with deep, rich tones",
+        "example": "Deep green-black gradients (Avtamata style)",
+        "transitions": "Soft, gradient-based, no hard edges"
+      },
+      "practical_application": {
+        "process": [
+          "Research and study references extensively (majority of time)",
+          "Identify emotional goal of design",
+          "Establish unified shape/color language",
+          "Create dynamic tension through intentional imbalance",
+          "Add interesting details that engage",
+          "Refine with soft transitions",
+          "Ensure emotional resonance"
+        ],
+        "checklist": [
+          "Does it have dynamic tension (not static balance)?",
+          "Are elements unified but not boring?",
+          "Are color transitions soft?",
+          "Does it carry emotional depth?",
+          "Is there something interesting to discover?",
+          "Would it inspire action or thought?"
+        ]
+      }
+    },
+    "learning_system": {
+      "id": "learning_system",
+      "name": "Learning & Evolution System",
+      "name_mn": "Суралцах ба хөгжлийн систем",
+      "description": "System for collecting user design data and continuously improving emotional intelligence",
+      "data_collection": {
+        "design_sessions": {
+          "description": "Each design session captures user decisions",
+          "schema": {
+            "session_id": "unique identifier",
+            "timestamp": "when created",
+            "user_id": "user identifier",
+            "design_type": "UI/poster/logo/etc",
+            "inputs": {
+              "mood_keywords": [
+                "calm",
+                "energetic",
+                "etc"
+              ],
+              "color_preferences": [
+                "selected colors"
+              ],
+              "style_references": [
+                "uploaded images or links"
+              ],
+              "target_emotion": "intended feeling"
+            },
+            "decisions": {
+              "colors_chosen": [],
+              "typography_chosen": [],
+              "layout_type": "",
+              "spacing_used": [],
+              "principles_applied": []
+            },
+            "feedback": {
+              "satisfaction_score": "1-10",
+              "emotion_match": "did it match intended emotion?",
+              "comments": "user notes"
+            }
+          }
+        },
+        "emotional_patterns": {
+          "description": "Track which design choices evoke which emotions",
+          "tracked_emotions": [
+            "calm",
+            "energetic",
+            "professional",
+            "playful",
+            "luxurious",
+            "minimal",
+            "bold",
+            "warm",
+            "cold",
+            "trustworthy",
+            "creative",
+            "serious",
+            "friendly"
+          ],
+          "pattern_schema": {
+            "emotion": "target emotion",
+            "successful_combinations": {
+              "colors": "which color combos work",
+              "typography": "which fonts work",
+              "spacing": "tight vs loose",
+              "shapes": "rounded vs sharp"
+            },
+            "success_rate": "percentage",
+            "sample_count": "how many times tested"
+          }
+        },
+        "preference_evolution": {
+          "description": "Track how user preferences change over time",
+          "tracked_aspects": [
+            "color_temperature_preference",
+            "minimalism_vs_maximalism",
+            "symmetry_vs_asymmetry",
+            "safe_vs_experimental",
+            "trend_following_vs_timeless"
+          ]
+        }
+      },
+      "analysis_engine": {
+        "pattern_recognition": {
+          "description": "Identify recurring successful patterns",
+          "methods": [
+            "Color combination frequency analysis",
+            "Emotion-to-design mapping",
+            "User preference clustering",
+            "Success rate tracking per principle"
+          ]
+        },
+        "emotion_intelligence": {
+          "description": "Build deeper understanding of emotional design",
+          "learning_from": [
+            "User satisfaction scores",
+            "A/B comparisons",
+            "Revision patterns (what users change)",
+            "Time spent on designs (engagement)"
+          ],
+          "outputs": [
+            "Refined emotion-color mappings",
+            "Personalized recommendations",
+            "Trend predictions",
+            "Style evolution suggestions"
+          ]
+        },
+        "principle_effectiveness": {
+          "description": "Track which principles work best in which contexts",
+          "metrics": [
+            "Principle usage frequency",
+            "Success rate per principle",
+            "Context-specific effectiveness",
+            "Combination synergies"
+          ]
+        }
+      },
+      "database_evolution": {
+        "auto_update_triggers": [
+          {
+            "trigger": "New successful pattern detected",
+            "action": "Add to recommended_combinations",
+            "threshold": "3+ successful uses"
+          },
+          {
+            "trigger": "Emotion mapping refined",
+            "action": "Update emotion_design_map",
+            "threshold": "10+ data points"
+          },
+          {
+            "trigger": "User preference shift detected",
+            "action": "Update user_profile",
+            "threshold": "Consistent change over 5+ sessions"
+          },
+          {
+            "trigger": "New trend pattern emerged",
+            "action": "Add to trend_observations",
+            "threshold": "Pattern seen across multiple users"
+          }
+        ],
+        "versioning": {
+          "current_version": "1.0.0",
+          "update_log": [],
+          "backup_frequency": "Before each major update"
+        }
+      },
+      "personalization": {
+        "user_profile_schema": {
+          "id": "user_id",
+          "created": "timestamp",
+          "design_count": 0,
+          "preferences": {
+            "color_palette_tendency": "warm/cool/neutral/mixed",
+            "complexity_preference": "minimal/moderate/complex",
+            "risk_tolerance": "safe/moderate/experimental",
+            "primary_design_types": [],
+            "favorite_principles": [],
+            "avoided_patterns": []
+          },
+          "emotional_profile": {
+            "target_emotions_frequency": {},
+            "successful_emotion_designs": [],
+            "emotional_growth": []
+          },
+          "skill_level": {
+            "current": "beginner/intermediate/advanced",
+            "growth_trajectory": [],
+            "mastered_principles": [],
+            "learning_principles": []
+          }
+        },
+        "recommendation_engine": {
+          "based_on": [
+            "Past successful designs",
+            "Similar users' patterns",
+            "Current skill level",
+            "Emotional goals",
+            "Design context"
+          ],
+          "outputs": [
+            "Color suggestions",
+            "Layout recommendations",
+            "Principle reminders",
+            "Style variations to try"
+          ]
+        }
+      },
+      "feedback_loops": {
+        "immediate": {
+          "type": "Real-time suggestions",
+          "trigger": "During design process",
+          "examples": [
+            "This color combo often feels [emotion]",
+            "Try adding more whitespace for calmness",
+            "Similar successful designs used [principle]"
+          ]
+        },
+        "session_end": {
+          "type": "Session summary",
+          "captures": [
+            "Satisfaction rating",
+            "Emotion accuracy",
+            "Principles used",
+            "Learning moments"
+          ]
+        },
+        "periodic": {
+          "type": "Progress reports",
+          "frequency": "Weekly/Monthly",
+          "includes": [
+            "Design count and types",
+            "Emotional range explored",
+            "Principle mastery progress",
+            "Style evolution",
+            "Recommendations for growth"
+          ]
+        }
+      }
+    },
+    "user_data_storage": {
+      "id": "user_data_storage",
+      "name": "User Design Data Storage",
+      "name_mn": "Хэрэглэгчийн дизайн дата сан",
+      "description": "Structure for storing and analyzing user-generated design data",
+      "collections": {
+        "sessions": {
+          "description": "Individual design sessions",
+          "retention": "Permanent",
+          "indexed_by": [
+            "user_id",
+            "timestamp",
+            "design_type",
+            "emotion"
+          ]
+        },
+        "designs": {
+          "description": "Completed design artifacts",
+          "retention": "Permanent",
+          "indexed_by": [
+            "user_id",
+            "design_type",
+            "success_score"
+          ]
+        },
+        "patterns": {
+          "description": "Discovered patterns across users",
+          "retention": "Permanent, versioned",
+          "indexed_by": [
+            "pattern_type",
+            "effectiveness",
+            "context"
+          ]
+        },
+        "emotions": {
+          "description": "Emotion-design correlations",
+          "retention": "Permanent, continuously updated",
+          "indexed_by": [
+            "emotion",
+            "design_elements"
+          ]
+        },
+        "trends": {
+          "description": "Observed design trends",
+          "retention": "Permanent with timestamps",
+          "indexed_by": [
+            "trend_name",
+            "date_observed",
+            "adoption_rate"
+          ]
+        }
+      },
+      "aggregations": {
+        "daily": "Session counts, popular emotions, active principles",
+        "weekly": "Pattern discoveries, user growth, trend shifts",
+        "monthly": "Database evolution, major insights, system improvements"
+      },
+      "privacy": {
+        "anonymization": "User data anonymized for pattern analysis",
+        "personal_data": "Only accessible to individual user",
+        "aggregate_insights": "Shared patterns benefit all users"
+      }
+    },
+    "emotion_design_map": {
+      "id": "emotion_design_map",
+      "name": "Emotion-Design Intelligence Map",
+      "name_mn": "Сэтгэл хөдлөл-Дизайн оюун ухааны газрын зураг",
+      "description": "Living map of emotion-to-design-element correlations that grows with user data",
+      "status": "Continuously learning",
+      "base_mappings": {
+        "calm": {
+          "colors": {
+            "primary": [
+              "#E8F4F8",
+              "#B8D4E3",
+              "#7FB3D3"
+            ],
+            "temperature": "cool",
+            "saturation": "low to medium"
+          },
+          "typography": {
+            "weight": "light to regular",
+            "style": "sans-serif, rounded",
+            "spacing": "generous"
+          },
+          "layout": {
+            "whitespace": "abundant",
+            "density": "low",
+            "symmetry": "balanced"
+          },
+          "shapes": "rounded, organic",
+          "confidence": 0.85,
+          "sample_count": 0,
+          "last_updated": null
+        },
+        "energetic": {
+          "colors": {
+            "primary": [
+              "#FF6B6B",
+              "#FFE66D",
+              "#4ECDC4"
+            ],
+            "temperature": "warm to mixed",
+            "saturation": "high"
+          },
+          "typography": {
+            "weight": "bold to black",
+            "style": "sans-serif, geometric",
+            "spacing": "tight to normal"
+          },
+          "layout": {
+            "whitespace": "moderate",
+            "density": "medium to high",
+            "symmetry": "dynamic asymmetry"
+          },
+          "shapes": "angular, dynamic",
+          "confidence": 0.8,
+          "sample_count": 0,
+          "last_updated": null
+        },
+        "professional": {
+          "colors": {
+            "primary": [
+              "#2C3E50",
+              "#34495E",
+              "#ECF0F1"
+            ],
+            "temperature": "cool to neutral",
+            "saturation": "low to medium"
+          },
+          "typography": {
+            "weight": "regular to medium",
+            "style": "sans-serif or serif classic",
+            "spacing": "normal"
+          },
+          "layout": {
+            "whitespace": "structured",
+            "density": "medium",
+            "symmetry": "balanced, grid-based"
+          },
+          "shapes": "clean, geometric",
+          "confidence": 0.9,
+          "sample_count": 0,
+          "last_updated": null
+        },
+        "luxurious": {
+          "colors": {
+            "primary": [
+              "#1A1A2E",
+              "#D4AF37",
+              "#F5F5F5"
+            ],
+            "temperature": "neutral with warm accents",
+            "saturation": "low base, high accents"
+          },
+          "typography": {
+            "weight": "light to regular",
+            "style": "serif, elegant",
+            "spacing": "generous tracking"
+          },
+          "layout": {
+            "whitespace": "abundant",
+            "density": "low",
+            "symmetry": "refined balance"
+          },
+          "shapes": "refined, minimal",
+          "confidence": 0.85,
+          "sample_count": 0,
+          "last_updated": null
+        },
+        "playful": {
+          "colors": {
+            "primary": [
+              "#FF6F91",
+              "#FF9671",
+              "#FFC75F"
+            ],
+            "temperature": "warm",
+            "saturation": "high"
+          },
+          "typography": {
+            "weight": "medium to bold",
+            "style": "rounded sans, display",
+            "spacing": "relaxed"
+          },
+          "layout": {
+            "whitespace": "varied",
+            "density": "medium",
+            "symmetry": "playful asymmetry"
+          },
+          "shapes": "rounded, organic, varied",
+          "confidence": 0.8,
+          "sample_count": 0,
+          "last_updated": null
+        }
+      },
+      "learning_notes": [
+        "Base mappings are starting points",
+        "Confidence increases with more user data",
+        "Mappings become more nuanced over time",
+        "Context-specific variations will emerge",
+        "User feedback refines accuracy"
+      ]
+    },
+    "auto_update_system": {
+      "id": "auto_update_system",
+      "name": "Auto-Update & Data Fetching System",
+      "name_mn": "Автомат шинэчлэл ба дата татах систем",
+      "description": "Automatically fetches and integrates new design-related information",
+      "status": "active",
+      "data_sources": {
+        "design_news": [
+          {
+            "source": "Awwwards",
+            "url": "https://www.awwwards.com",
+            "type": "Web design trends, SOTD",
+            "fetch_frequency": "daily",
+            "data_extracted": [
+              "winning_sites",
+              "design_patterns",
+              "color_trends",
+              "typography_trends"
+            ]
+          },
+          {
+            "source": "Dribbble",
+            "url": "https://dribbble.com",
+            "type": "UI/Visual design shots",
+            "fetch_frequency": "daily",
+            "data_extracted": [
+              "popular_shots",
+              "color_palettes",
+              "style_trends",
+              "creator_techniques"
+            ]
+          },
+          {
+            "source": "Behance",
+            "url": "https://www.behance.net",
+            "type": "Full projects",
+            "fetch_frequency": "daily",
+            "data_extracted": [
+              "featured_projects",
+              "creative_fields",
+              "tools_used",
+              "style_tags"
+            ]
+          },
+          {
+            "source": "UX Collective",
+            "url": "https://uxdesign.cc",
+            "type": "UX/UI articles",
+            "fetch_frequency": "weekly",
+            "data_extracted": [
+              "trend_articles",
+              "methodology_updates",
+              "tool_reviews",
+              "case_studies"
+            ]
+          },
+          {
+            "source": "Nielsen Norman Group",
+            "url": "https://www.nngroup.com",
+            "type": "UX research",
+            "fetch_frequency": "weekly",
+            "data_extracted": [
+              "research_findings",
+              "usability_updates",
+              "pattern_validations"
+            ]
+          }
+        ],
+        "trend_trackers": [
+          {
+            "source": "Google Trends",
+            "type": "Search trend data",
+            "keywords_tracked": [
+              "UI design",
+              "UX design",
+              "web design trends",
+              "color trends",
+              "typography trends",
+              "design tools"
+            ],
+            "fetch_frequency": "weekly"
+          },
+          {
+            "source": "Twitter/X Design Community",
+            "hashtags": [
+              "#uidesign",
+              "#uxdesign",
+              "#webdesign",
+              "#designtwitter",
+              "#figma"
+            ],
+            "type": "Real-time discussions",
+            "fetch_frequency": "daily",
+            "data_extracted": [
+              "trending_topics",
+              "tool_discussions",
+              "hot_takes",
+              "new_techniques"
+            ]
+          },
+          {
+            "source": "Product Hunt",
+            "url": "https://www.producthunt.com",
+            "type": "New design tools",
+            "fetch_frequency": "daily",
+            "data_extracted": [
+              "new_design_tools",
+              "ai_tools",
+              "productivity_tools"
+            ]
+          }
+        ],
+        "tool_updates": [
+          {
+            "tool": "Figma",
+            "source": "Figma Blog & Changelog",
+            "fetch_frequency": "on_release",
+            "data_extracted": [
+              "new_features",
+              "plugin_updates",
+              "community_resources"
+            ]
+          },
+          {
+            "tool": "Framer",
+            "source": "Framer Updates",
+            "fetch_frequency": "on_release",
+            "data_extracted": [
+              "new_features",
+              "templates",
+              "ai_capabilities"
+            ]
+          },
+          {
+            "tool": "Adobe Creative Cloud",
+            "source": "Adobe Blog",
+            "fetch_frequency": "on_release",
+            "data_extracted": [
+              "new_features",
+              "ai_updates",
+              "integration_news"
+            ]
+          }
+        ],
+        "inspiration_feeds": [
+          {
+            "source": "Mobbin",
+            "url": "https://mobbin.com",
+            "type": "Mobile UI patterns",
+            "fetch_frequency": "weekly",
+            "data_extracted": [
+              "new_patterns",
+              "app_screenshots",
+              "flow_examples"
+            ]
+          },
+          {
+            "source": "Land-book",
+            "url": "https://land-book.com",
+            "type": "Landing pages",
+            "fetch_frequency": "weekly",
+            "data_extracted": [
+              "new_sites",
+              "layout_patterns",
+              "conversion_techniques"
+            ]
+          },
+          {
+            "source": "Minimal Gallery",
+            "url": "https://minimal.gallery",
+            "type": "Minimal design",
+            "fetch_frequency": "weekly",
+            "data_extracted": [
+              "minimal_examples",
+              "whitespace_usage",
+              "typography_choices"
+            ]
+          }
+        ]
+      },
+      "fetch_pipeline": {
+        "stages": [
+          {
+            "stage": 1,
+            "name": "Data Collection",
+            "actions": [
+              "Scrape/API call to sources",
+              "Extract relevant content",
+              "Store raw data with timestamp"
+            ]
+          },
+          {
+            "stage": 2,
+            "name": "Processing",
+            "actions": [
+              "Clean and normalize data",
+              "Extract design elements (colors, fonts, layouts)",
+              "Categorize by type/emotion/style",
+              "Tag with relevant principles"
+            ]
+          },
+          {
+            "stage": 3,
+            "name": "Analysis",
+            "actions": [
+              "Compare with existing database",
+              "Identify new patterns",
+              "Detect trend shifts",
+              "Calculate relevance scores"
+            ]
+          },
+          {
+            "stage": 4,
+            "name": "Integration",
+            "actions": [
+              "Update trend database",
+              "Add new patterns to library",
+              "Refresh recommendation engine",
+              "Log changes"
+            ]
+          },
+          {
+            "stage": 5,
+            "name": "Notification",
+            "actions": [
+              "Alert user of significant updates",
+              "Summarize weekly trends",
+              "Highlight relevant discoveries"
+            ]
+          }
+        ]
+      },
+      "auto_categorization": {
+        "color_extraction": {
+          "method": "Analyze images for dominant colors",
+          "output": "Color palettes with hex codes",
+          "tagging": [
+            "warm/cool",
+            "emotion",
+            "industry"
+          ]
+        },
+        "typography_detection": {
+          "method": "Font recognition AI",
+          "output": "Font names, weights, pairings",
+          "tagging": [
+            "style",
+            "readability",
+            "mood"
+          ]
+        },
+        "layout_analysis": {
+          "method": "Grid detection, whitespace calculation",
+          "output": "Layout patterns, spacing ratios",
+          "tagging": [
+            "grid_type",
+            "density",
+            "balance"
+          ]
+        },
+        "style_classification": {
+          "method": "ML classification",
+          "categories": [
+            "minimal",
+            "brutalist",
+            "glassmorphism",
+            "neumorphism",
+            "flat",
+            "skeuomorphic",
+            "organic",
+            "geometric",
+            "retro",
+            "futuristic",
+            "corporate",
+            "playful"
+          ]
+        },
+        "emotion_tagging": {
+          "method": "Color + Typography + Layout analysis",
+          "output": "Primary and secondary emotions",
+          "confidence_score": true
+        }
+      },
+      "update_rules": {
+        "trend_updates": {
+          "condition": "New trend detected across 3+ sources",
+          "action": "Add to design_trends with 'emerging' status",
+          "notification": true
+        },
+        "pattern_updates": {
+          "condition": "Pattern seen 10+ times in week",
+          "action": "Add to pattern_library",
+          "notification": false
+        },
+        "tool_updates": {
+          "condition": "Major tool release",
+          "action": "Update resources section",
+          "notification": true
+        },
+        "principle_validation": {
+          "condition": "Principle effectiveness data from 50+ designs",
+          "action": "Update confidence scores",
+          "notification": false
+        },
+        "color_trend_shift": {
+          "condition": "Significant shift in popular palettes",
+          "action": "Update color_trends section",
+          "notification": true
+        }
+      },
+      "storage": {
+        "raw_data": {
+          "location": "fetched_data/raw/",
+          "retention": "30 days",
+          "format": "JSON with timestamp"
+        },
+        "processed_data": {
+          "location": "fetched_data/processed/",
+          "retention": "permanent",
+          "format": "Categorized JSON"
+        },
+        "trend_history": {
+          "location": "trends/history/",
+          "retention": "permanent",
+          "format": "Time-series data"
+        }
+      },
+      "scheduling": {
+        "daily_jobs": [
+          {
+            "time": "06:00",
+            "task": "Fetch Awwwards SOTD"
+          },
+          {
+            "time": "08:00",
+            "task": "Fetch Dribbble popular"
+          },
+          {
+            "time": "12:00",
+            "task": "Scan Twitter/X hashtags"
+          },
+          {
+            "time": "18:00",
+            "task": "Check Product Hunt launches"
+          }
+        ],
+        "weekly_jobs": [
+          {
+            "day": "Monday",
+            "task": "Full trend analysis"
+          },
+          {
+            "day": "Wednesday",
+            "task": "Tool update check"
+          },
+          {
+            "day": "Friday",
+            "task": "Weekly trend summary"
+          },
+          {
+            "day": "Sunday",
+            "task": "Database optimization"
+          }
+        ],
+        "on_demand": [
+          "User-triggered refresh",
+          "Major event detection",
+          "New source addition"
+        ]
+      },
+      "api_integrations": {
+        "planned": [
+          {
+            "api": "Figma Community API",
+            "purpose": "Fetch popular community files",
+            "status": "planned"
+          },
+          {
+            "api": "Dribbble API",
+            "purpose": "Popular shots and colors",
+            "status": "planned"
+          },
+          {
+            "api": "Google Trends API",
+            "purpose": "Search trend data",
+            "status": "planned"
+          },
+          {
+            "api": "Twitter/X API",
+            "purpose": "Design community discussions",
+            "status": "planned"
+          }
+        ]
+      }
+    },
+    "live_trends": {
+      "id": "live_trends",
+      "name": "Live Trend Tracker",
+      "name_mn": "Шууд trend хянагч",
+      "description": "Real-time tracking of emerging design trends",
+      "last_updated": "2025-12-29T06:27:45.840322",
+      "current_trends": {
+        "rising": [],
+        "stable": [],
+        "declining": []
+      },
+      "trend_schema": {
+        "id": "unique_id",
+        "name": "trend name",
+        "category": "visual/ux/tool/methodology",
+        "first_detected": "timestamp",
+        "last_seen": "timestamp",
+        "frequency_score": "0-100",
+        "sources_detected": [
+          "list of sources"
+        ],
+        "examples": [
+          "urls or references"
+        ],
+        "related_principles": [
+          "linked principles"
+        ],
+        "emotion_associations": [
+          "linked emotions"
+        ],
+        "status": "emerging/rising/stable/declining/dead"
+      },
+      "detection_methods": {
+        "keyword_frequency": "Track design term usage over time",
+        "visual_pattern": "Detect recurring visual elements",
+        "tool_adoption": "Monitor new tool popularity",
+        "discussion_volume": "Track social media mentions",
+        "award_patterns": "Analyze winning design characteristics"
+      },
+      "trend_lifecycle": [
+        {
+          "stage": "emerging",
+          "description": "First detected, low volume",
+          "action": "Monitor"
+        },
+        {
+          "stage": "rising",
+          "description": "Growing rapidly",
+          "action": "Add to recommendations"
+        },
+        {
+          "stage": "mainstream",
+          "description": "Widely adopted",
+          "action": "Include in defaults"
+        },
+        {
+          "stage": "stable",
+          "description": "Established standard",
+          "action": "Maintain"
+        },
+        {
+          "stage": "declining",
+          "description": "Usage decreasing",
+          "action": "Flag as dated"
+        },
+        {
+          "stage": "retro",
+          "description": "Nostalgic comeback",
+          "action": "Re-evaluate"
+        }
+      ]
+    },
+    "fetch_log": {
+      "id": "fetch_log",
+      "name": "Data Fetch Log",
+      "name_mn": "Дата татсан бүртгэл",
+      "description": "Log of all automated data fetches",
+      "entries": [],
+      "entry_schema": {
+        "timestamp": "when fetched",
+        "source": "where from",
+        "data_type": "what type",
+        "items_fetched": "count",
+        "items_processed": "count",
+        "items_added": "count",
+        "status": "success/partial/failed",
+        "notes": "any issues or highlights"
+      },
+      "statistics": {
+        "total_fetches": 0,
+        "successful_fetches": 0,
+        "items_collected": 0,
+        "trends_detected": 0,
+        "patterns_added": 0
+      }
+    }
+  },
+  "search_index": {
+    "keywords": {},
+    "key_terms": [
+      "proximity",
+      "similarity",
+      "closure",
+      "continuity",
+      "gestalt",
+      "color",
+      "harmony",
+      "complementary",
+      "analogous",
+      "triadic",
+      "monochromatic",
+      "typography",
+      "font",
+      "serif",
+      "hierarchy",
+      "grid",
+      "layout",
+      "spacing",
+      "whitespace",
+      "accessibility",
+      "contrast",
+      "wcag",
+      "visceral",
+      "behavioral",
+      "reflective",
+      "emotional",
+      "brutalism",
+      "minimalism",
+      "maximalism",
+      "trend"
+    ]
+  }
+}
