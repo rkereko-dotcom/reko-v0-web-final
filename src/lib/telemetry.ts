@@ -12,7 +12,7 @@ const MAX_EVENT_BYTES = 200_000;
 export type TelemetryEvent = {
   id: string;
   ts: string;
-  type: "analyze" | "generate" | "feedback" | "text-to-image";
+  type: "analyze" | "generate" | "feedback" | "api-generate";
   sessionId?: string;
   userId?: string;
   payload?: Record<string, unknown>;
