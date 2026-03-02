@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/components/providers/auth-provider";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -11,7 +13,15 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
   const supabase = createClient();
+  const { user, profile, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      router.push(profile.role === "admin" ? "/admin" : "/dashboard");
+    }
+  }, [authLoading, user, profile, router]);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();

@@ -13,8 +13,6 @@ const navLinks = [
   "Pricing",
 ];
 
-const logoNames = ["Bird", "Zillow", "ElevenLabs", "Dribbble", "Miro", "Perplexity", "DoorDash", "Mixpanel"];
-
 const heroTiles = [
   { src: "/framer/0DoFvQInPiH34TWUk6DzVA9JQ.avif", title: "Milo", meta: "Template" },
   { src: "/framer/0DqWFfs9zfVYPO7PZd8O8bsRtE.avif", title: "Notion", meta: "Plugin" },
@@ -34,7 +32,14 @@ const heroTiles = [
 ];
 
 export default function LandingPage() {
-  const [shuffledTiles, setShuffledTiles] = useState(heroTiles);
+  const [shuffledTiles] = useState(() => {
+    const next = [...heroTiles];
+    for (let i = next.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [next[i], next[j]] = [next[j], next[i]];
+    }
+    return next;
+  });
   const [compareValue, setCompareValue] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [showDock, setShowDock] = useState(false);
@@ -43,15 +48,6 @@ export default function LandingPage() {
   const processSectionRef = useRef<HTMLDivElement | null>(null);
   const processPreviewViewportRef = useRef<HTMLDivElement | null>(null);
   const processPreviewTrackRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const next = [...heroTiles];
-    for (let i = next.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [next[i], next[j]] = [next[j], next[i]];
-    }
-    setShuffledTiles(next);
-  }, []);
 
   const topTiles = shuffledTiles.slice(0, 8);
   const bottomTiles = shuffledTiles.slice(8, 16);
@@ -216,7 +212,7 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-3">
             <Link
-              href="/studio"
+              href="/dashboard"
               className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white/90 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_8px_24px_-16px_rgba(0,0,0,0.9)] transition hover:border-white/40 hover:bg-white/15"
             >
               Dashboard

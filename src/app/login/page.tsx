@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/components/providers/auth-provider";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -12,6 +13,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const { user, profile, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      router.push(profile.role === "admin" ? "/admin" : "/dashboard");
+    }
+  }, [authLoading, user, profile, router]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -29,7 +37,14 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    // Fetch profile to check role and redirect accordingly
+    const res = await fetch("/api/profile");
+    if (res.ok) {
+      const profile = await res.json();
+      router.push(profile.role === "admin" ? "/admin" : "/dashboard");
+    } else {
+      router.push("/dashboard");
+    }
   }
 
   return (
