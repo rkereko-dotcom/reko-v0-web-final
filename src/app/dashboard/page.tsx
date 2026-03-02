@@ -1,14 +1,43 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/providers/auth-provider";
 
 export default function DashboardPage() {
+  const { user, profile, loading, signOut } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [loading, user, router]);
+
+  async function handleSignOut() {
+    await signOut();
+    router.push("/login");
+  }
+
+  if (loading || !user) {
+    return (
+      <main className="relative z-10 flex-1 px-6 pb-16 pt-8">
+        <div className="mx-auto max-w-6xl flex items-center justify-center min-h-[50vh]">
+          <p className="text-zinc-500 text-sm">Ачааллаж байна...</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="relative z-10 flex-1 px-6 pb-16 pt-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">Your workspace</p>
+            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">
+              {user?.email} ({profile?.tier === "premium" ? "Premium" : "Free"})
+            </p>
             <h1 className="text-3xl md:text-4xl font-semibold text-white font-[var(--font-display)] tracking-tight">
               User dashboard
             </h1>
@@ -20,8 +49,16 @@ export default function DashboardPage() {
             >
               Go to Studio
             </Link>
-            <button className="rounded-full bg-[#bde7ff] px-4 py-2 text-sm font-semibold text-black shadow-[0_12px_30px_-20px_rgba(140,215,255,0.6)]">
-              Upgrade plan
+            {profile?.tier === "free" && (
+              <button className="rounded-full bg-[#bde7ff] px-4 py-2 text-sm font-semibold text-black shadow-[0_12px_30px_-20px_rgba(140,215,255,0.6)]">
+                Upgrade plan
+              </button>
+            )}
+            <button
+              onClick={handleSignOut}
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-400 hover:text-zinc-200 hover:bg-white/10"
+            >
+              Гарах
             </button>
           </div>
         </div>

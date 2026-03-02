@@ -12,6 +12,7 @@ import { buildReferenceCueBlock, findReferenceMatches } from "@/lib/reference-ma
 // Folder to save generated images
 const SAVE_FOLDER = path.join(process.cwd(), "generated-images");
 const SAVE_GENERATED_IMAGES = process.env.SAVE_GENERATED_IMAGES === "true";
+const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 
 // Save image to disk and return the file path
 function saveImageToDisk(imageData: string, variationName: string, index: number): string {
@@ -379,8 +380,9 @@ ${expectedWordmarkRule}`;
       response,
       GEMINI_VERIFY_TIMEOUT_MS,
       "Logo verify"
-    ).catch(() => ({}));
-    const parts = data?.candidates?.[0]?.content?.parts || [];
+    ).catch(() => ({} as Record<string, unknown>));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parts = (data as any)?.candidates?.[0]?.content?.parts || [];
     const responseText = parts
       .map((part: { text?: string }) => part.text)
       .filter(Boolean)
@@ -3181,7 +3183,8 @@ OUTPUT SELF-CHECK (must pass before final image):
   }
 
   const candidateModels = [GEMINI_IMAGE_MODEL, ...GEMINI_IMAGE_FALLBACK_MODELS];
-  let data: { candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }> } }> } | null = null;
+  type GeminiResponse = { candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }> } }> };
+  let data: GeminiResponse | null = null;
   let lastError: (Error & { retryAfterMs?: number; statusCode?: number }) | null = null;
 
   for (const modelName of candidateModels) {
@@ -3231,9 +3234,10 @@ OUTPUT SELF-CHECK (must pass before final image):
         response,
         GEMINI_REQUEST_TIMEOUT_MS,
         `Gemini ${modelName} error`
-      ).catch(() => ({}));
+      ).catch(() => ({} as Record<string, unknown>));
       console.error(`Gemini Image API error (${modelName}):`, JSON.stringify(errorData));
-      const errorMessage = errorData?.error?.message || `Status ${response.status}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const errorMessage = (errorData as any)?.error?.message || `Status ${response.status}`;
       const error = new Error(`Gemini 3 API (${modelName}): ${errorMessage}`) as Error & {
         retryAfterMs?: number;
         statusCode?: number;
@@ -3257,11 +3261,11 @@ OUTPUT SELF-CHECK (must pass before final image):
       throw error;
     }
 
-    data = (await readResponseJsonWithTimeout<typeof data>(
+    data = await readResponseJsonWithTimeout<GeminiResponse>(
       response,
       GEMINI_REQUEST_TIMEOUT_MS,
       `Gemini ${modelName} success`
-    )) as typeof data;
+    );
     break;
   }
 

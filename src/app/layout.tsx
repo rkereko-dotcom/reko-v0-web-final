@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Funnel_Display, Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { AuthProvider } from "@/components/providers/auth-provider";
 import "./globals.css";
 
 const displayFont = Inter_Tight({
@@ -40,7 +41,7 @@ export default function RootLayout({
       <body
         className={`${displayFont.variable} ${funnelDisplay.variable} ${bodyFont.variable} ${monoFont.variable} antialiased bg-[var(--background)] text-[var(--foreground)]`}
       >
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

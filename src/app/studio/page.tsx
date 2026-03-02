@@ -1,8 +1,11 @@
+/* eslint-disable react/no-unescaped-entities */
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/components/providers/auth-provider";
 import { TEXT_SPECS } from "@/lib/design-system";
 
 // Steve Jobs Style Category Scores
@@ -305,6 +308,15 @@ const GRADIENT_PRESETS: { value: GradientPreset; label: string; description: str
 const MAX_AUTO_RETRIES = 3;
 
 export default function Home() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [authLoading, user, router]);
+
   const [image, setImage] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
   const [isDragging, setIsDragging] = useState(false);
@@ -1353,6 +1365,14 @@ export default function Home() {
   };
   const overall = splitLeadSentence(analysisResult?.feedback?.overall || "");
 
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen gradient-bg flex items-center justify-center">
+        <p className="text-zinc-500 text-sm">Ачааллаж байна...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen gradient-bg relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_500px_at_50%_-10%,rgba(16,185,129,0.12),transparent_60%)]" />
@@ -1560,7 +1580,7 @@ export default function Home() {
               {/* Analyze Button */}
               {image && !analysisResult && (
                 <button
-                  onClick={handleAnalyze}
+                  onClick={() => handleAnalyze()}
                   disabled={isAnalyzing}
                   className={`
                     w-full px-8 py-4 rounded-xl font-medium text-lg transition-all duration-300 flex items-center justify-center gap-3
@@ -1646,7 +1666,7 @@ export default function Home() {
               )}
 
               {/* Main Score Card */}
-              {false && analysisResult && (
+              {(false as boolean) && analysisResult && (
                 <div className="rounded-2xl border border-white/8 bg-zinc-950/80 shadow-[0_18px_48px_-32px_rgba(0,0,0,0.9)]">
                   <div className="p-4 sm:p-6 grid gap-6 lg:grid-cols-[0.9fr,1.1fr]">
                     <div className="rounded-2xl border border-white/6 bg-zinc-950/80 p-5">
@@ -3136,7 +3156,7 @@ export default function Home() {
                                   </div>
                                 </div>
 
-                                {false && image && (
+                                {(false as boolean) && image && (
                                   <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
                                     <div className="flex items-center justify-between text-xs text-zinc-400">
                                       <span>Before / After</span>
@@ -3144,7 +3164,7 @@ export default function Home() {
                                     </div>
                                     <div className="relative mt-3 aspect-[3/4] w-full overflow-hidden rounded-lg border border-zinc-800 bg-black/70">
                                       <img
-                                        src={image}
+                                        src={image ?? undefined}
                                         alt="Original poster"
                                         className="absolute inset-0 h-full w-full object-cover"
                                       />
@@ -3450,7 +3470,7 @@ export default function Home() {
                 Cancel
               </button>
               <button
-                onClick={handleGenerateFromSketch}
+                onClick={() => handleGenerateFromSketch()}
                 disabled={!sketchInputs.headline.trim() || isGeneratingFromSketch}
                 className="px-8 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold hover:from-amber-600 hover:to-orange-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
@@ -3667,7 +3687,7 @@ export default function Home() {
                 Cancel
               </button>
               <button
-                onClick={handleGenerateFromProduct}
+                onClick={() => handleGenerateFromProduct()}
                 disabled={!productInputs.headline.trim() || isGeneratingFromProduct}
                 className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
