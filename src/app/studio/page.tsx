@@ -190,25 +190,16 @@ type AspectRatio = "9:16" | "16:9" | "1:1" | "4:5" | "3:4";
 type RedesignPreset = "clean" | "bold" | "swiss" | "pop" | "luxury" | "retro";
 type GradientPreset = "auto" | "mesh-soft" | "duotone-wash" | "dark-spotlight" | "warm-film";
 type ArtisticStyleKey =
-  | "dnaLayout"
-  | "dnaIconic"
-  | "dnaGradient"
-  | "painterly"
-  | "hand"
-  | "elevated"
-  | "mood"
-  | "riso"
-  | "paper"
-  | "ink"
-  | "halftone"
-  | "boldMinimal"
-  | "warmEditorial"
-  | "handcrafted"
-  | "texturedGrain"
-  | "neoTech"
-  | "windowLight"
-  | "retroMetallic"
-  | "abstractBotanicals";
+  | "clean_corporate"
+  | "premium_dark"
+  | "bold_typography"
+  | "gradient_atmosphere"
+  | "photo_duotone"
+  | "geometric_abstract"
+  | "editorial_minimal"
+  | "vibrant_promo"
+  | "soft_elegant"
+  | "event_spotlight";
 
 const ASPECT_RATIOS: { value: AspectRatio; label: string; icon: string }[] = [
   { value: "9:16", label: "Portrait", icon: "▯" },
@@ -217,6 +208,41 @@ const ASPECT_RATIOS: { value: AspectRatio; label: string; icon: string }[] = [
   { value: "4:5", label: "Instagram", icon: "▯" },
   { value: "3:4", label: "Standard", icon: "▯" },
 ];
+
+function pickClosestAspectRatio(width: number, height: number): AspectRatio {
+  const currentRatio = width / height;
+  let best: AspectRatio = "9:16";
+  let bestDiff = Number.POSITIVE_INFINITY;
+
+  for (const candidate of ASPECT_RATIOS) {
+    const [w, h] = candidate.value.split(":").map(Number);
+    const target = w / h;
+    const diff = Math.abs(currentRatio - target);
+    if (diff < bestDiff) {
+      best = candidate.value;
+      bestDiff = diff;
+    }
+  }
+
+  return best;
+}
+
+async function detectAspectRatioFromDataUrl(dataUrl: string): Promise<AspectRatio> {
+  return await new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      if (!width || !height) {
+        resolve("9:16");
+        return;
+      }
+      resolve(pickClosestAspectRatio(width, height));
+    };
+    img.onerror = () => resolve("9:16");
+    img.src = dataUrl;
+  });
+}
 
 const REDESIGN_PRESET_GROUPS = {
   recommended: [
@@ -240,33 +266,33 @@ const REDESIGN_PRESET_LABELS: Record<RedesignPreset, string> = {
   retro: "Retro Poster",
 };
 
-const ARTISTIC_STYLE_GROUPS = {
-  recommended: [
-    { key: "dnaLayout", label: "Layout/Ratio DNA", icon: "LR" },
-    { key: "dnaIconic", label: "Iconic Object", icon: "IO" },
-    { key: "dnaGradient", label: "Gradient Atmosphere", icon: "GA" },
-    { key: "elevated", label: "Elevated Essence", icon: "EE" },
-  ],
-  more: [
-    { key: "painterly", label: "Painterly Touch", icon: "PT" },
-    { key: "hand", label: "Hand-Drawn Heart", icon: "HD" },
-    { key: "mood", label: "Mood Amplified", icon: "MA" },
-    { key: "riso", label: "Risograph Print", icon: "RS" },
-    { key: "paper", label: "Paper Cut Collage", icon: "PC" },
-    { key: "ink", label: "Ink Wash", icon: "IW" },
-    { key: "halftone", label: "Halftone Screenprint", icon: "HT" },
-  ],
-  trending: [
-    { key: "boldMinimal", label: "Bold Minimal", icon: "BM" },
-    { key: "warmEditorial", label: "Warm Editorial", icon: "WE" },
-    { key: "handcrafted", label: "Handcrafted Type", icon: "HC" },
-    { key: "texturedGrain", label: "Textured Grain", icon: "TG" },
-    { key: "neoTech", label: "Neo-Tech Glow", icon: "NT" },
-    { key: "windowLight", label: "Window Light", icon: "WL" },
-    { key: "retroMetallic", label: "Retro Serif", icon: "RM" },
-    { key: "abstractBotanicals", label: "Abstract Botanicals", icon: "AB" },
-  ],
-} as const;
+const ARTISTIC_STYLE_TRAFFIC_ORDER: ArtisticStyleKey[] = [
+  "premium_dark",
+  "gradient_atmosphere",
+  "bold_typography",
+  "clean_corporate",
+  "photo_duotone",
+  "geometric_abstract",
+  "vibrant_promo",
+  "editorial_minimal",
+  "soft_elegant",
+  "event_spotlight",
+];
+
+const ARTISTIC_STYLE_META: Record<ArtisticStyleKey, { label: string; icon: string }> = {
+  clean_corporate: { label: "Clean Corporate", icon: "CC" },
+  premium_dark: { label: "Premium Dark", icon: "PD" },
+  bold_typography: { label: "Bold Typography", icon: "BT" },
+  gradient_atmosphere: { label: "Gradient Atmosphere", icon: "GA" },
+  photo_duotone: { label: "Photo + Duotone", icon: "PD" },
+  geometric_abstract: { label: "Geometric Abstract", icon: "GX" },
+  editorial_minimal: { label: "Editorial Minimal", icon: "EM" },
+  vibrant_promo: { label: "Vibrant Promo", icon: "VP" },
+  soft_elegant: { label: "Soft Elegant", icon: "SE" },
+  event_spotlight: { label: "Event Spotlight", icon: "ES" },
+};
+
+const ARTISTIC_STYLE_BATCH_SIZE = 4;
 
 const GRADIENT_PRESETS: { value: GradientPreset; label: string; description: string }[] = [
   { value: "auto", label: "Auto", description: "Pick based on moodboard cues" },
@@ -289,15 +315,17 @@ export default function Home() {
   const [generationRequestId, setGenerationRequestId] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "details" | "principles" | "variations">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "details" | "principles" | "variations">("variations");
   const [selectedVariation, setSelectedVariation] = useState<number | null>(null);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
   const [redesignPreset, setRedesignPreset] = useState<RedesignPreset>("clean");
+  const [simpleModePreference, setSimpleModePreference] = useState<"auto" | "artistic" | "redesign">("auto");
   const [artisticIntensity, setArtisticIntensity] = useState<"subtle" | "balanced" | "extreme">("balanced");
   const [artisticTextSafety, setArtisticTextSafety] = useState<"strict" | "creative">("strict");
   const [artisticColorFidelity, setArtisticColorFidelity] = useState<"preserve" | "explore">("preserve");
   const [artisticExtra, setArtisticExtra] = useState(false);
   const [selectedArtisticStyles, setSelectedArtisticStyles] = useState<ArtisticStyleKey[]>([]);
+  const [artisticStyleBatch, setArtisticStyleBatch] = useState(0);
   const [gradientPreset, setGradientPreset] = useState<GradientPreset>("auto");
   const [compareValue, setCompareValue] = useState(50);
   const [editingPromptIndex, setEditingPromptIndex] = useState<number | null>(null);
@@ -344,8 +372,20 @@ export default function Home() {
   const [isGeneratingFromProduct, setIsGeneratingFromProduct] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const totalArtisticBatches = Math.ceil(ARTISTIC_STYLE_TRAFFIC_ORDER.length / ARTISTIC_STYLE_BATCH_SIZE);
+  const normalizedArtisticBatch =
+    totalArtisticBatches > 0 ? ((artisticStyleBatch % totalArtisticBatches) + totalArtisticBatches) % totalArtisticBatches : 0;
+  const batchStart = normalizedArtisticBatch * ARTISTIC_STYLE_BATCH_SIZE;
+  const batchEnd = batchStart + ARTISTIC_STYLE_BATCH_SIZE;
+  let autoRecommendedStyles = ARTISTIC_STYLE_TRAFFIC_ORDER.slice(batchStart, batchEnd);
+  if (autoRecommendedStyles.length < ARTISTIC_STYLE_BATCH_SIZE) {
+    autoRecommendedStyles = [
+      ...autoRecommendedStyles,
+      ...ARTISTIC_STYLE_TRAFFIC_ORDER.slice(0, ARTISTIC_STYLE_BATCH_SIZE - autoRecommendedStyles.length),
+    ];
+  }
   const selectionActive = selectedArtisticStyles.length > 0;
-  const defaultArtisticCount = 4 + (artisticExtra ? 4 : 0);
+  const defaultArtisticCount = autoRecommendedStyles.length;
 
   const toggleArtisticStyle = (key: ArtisticStyleKey) => {
     setSelectedArtisticStyles((prev) =>
@@ -355,6 +395,11 @@ export default function Home() {
 
   const clearArtisticStyles = () => {
     setSelectedArtisticStyles([]);
+  };
+
+  const cycleArtisticStyleBatch = () => {
+    if (totalArtisticBatches <= 0) return;
+    setArtisticStyleBatch((prev) => (prev + 1) % totalArtisticBatches);
   };
 
   const clearRetryTimers = useCallback(() => {
@@ -600,11 +645,15 @@ export default function Home() {
         // Compress image to reduce size for upload
         const compressedImage = await compressImage(file);
         setImage(compressedImage);
+        const detectedRatio = await detectAspectRatioFromDataUrl(compressedImage);
+        setAspectRatio(detectedRatio);
       } catch {
         // Fallback to original if compression fails
         const reader = new FileReader();
         reader.onload = (e) => {
-          setImage(e.target?.result as string);
+          const dataUrl = e.target?.result as string;
+          setImage(dataUrl);
+          void detectAspectRatioFromDataUrl(dataUrl).then((ratio) => setAspectRatio(ratio));
         };
         reader.readAsDataURL(file);
       }
@@ -708,6 +757,7 @@ export default function Home() {
         audience: data?.intent_profile?.target_audience || "",
       });
       setIntentSaved(false);
+      setActiveTab("variations");
 
       // If sketch detected, show sketch input modal
       if (data.is_sketch) {
@@ -724,7 +774,7 @@ export default function Home() {
       // If product detected, show product input modal
       else if (data.is_product) {
         console.log("📦 PRODUCT DETECTED! Showing input modal...");
-        setShowProductModal(true);
+        setShowProductModal(false);
         // Pre-fill from product_info if available
         if (data.product_info) {
           setProductInputs(prev => ({
@@ -782,6 +832,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           mode,
+          provider: "gemini3",
           aspectRatio,
           parallel: true,
           originalImage: image,
@@ -793,7 +844,10 @@ export default function Home() {
           artisticTextSafety: mode === "artistic" ? artisticTextSafety : undefined,
           artisticColorFidelity: mode === "artistic" ? artisticColorFidelity : undefined,
           artisticExtra: mode === "artistic" ? artisticExtra : undefined,
-          artisticStyles: mode === "artistic" && selectedArtisticStyles.length > 0 ? selectedArtisticStyles : undefined,
+          artisticStyles:
+            mode === "artistic"
+              ? (selectedArtisticStyles.length > 0 ? selectedArtisticStyles : autoRecommendedStyles)
+              : undefined,
           inspirationNotes: inspirationNotes.trim() ? inspirationNotes.trim() : undefined,
           gradientPreset: gradientPreset
         }),
@@ -824,6 +878,31 @@ export default function Home() {
     }
   };
 
+  const getOneClickMode = (): "artistic" | "redesign" => {
+    if (simpleModePreference === "artistic" || simpleModePreference === "redesign") {
+      return simpleModePreference;
+    }
+    return (analysisResult?.score ?? 0) >= 60 ? "artistic" : "redesign";
+  };
+
+  const handleGenerateOneClick = (isAutoRetry = false) => {
+    return handleGenerateVariations(getOneClickMode(), isAutoRetry);
+  };
+
+  const oneClickMode = getOneClickMode();
+  const oneClickModeLabel = oneClickMode === "artistic" ? "Style refresh" : "Full makeover";
+  const ratioLockedToSource = Boolean(image);
+  const quickGeneratePrompts = [
+    "Personal Page",
+    "Landing Page",
+    "About Page",
+    "Resume",
+    "Portfolio",
+  ];
+  const applyQuickGeneratePrompt = (value: string) => {
+    setInspirationNotes(value);
+  };
+
   // Regenerate a single variation with edited prompt
   const handleRegenerateVariation = async (index: number, isAutoRetry = false) => {
     if (!analysisResult?.variations[index]) return;
@@ -846,6 +925,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           prompts: [prompt],
+          provider: "gemini3",
           aspectRatio,
           parallel: false,
           originalImage: image,
@@ -908,6 +988,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           mode: "sketch-to-design",
+          provider: "gemini3",
           aspectRatio,
           parallel: true,
           originalImage: image,
@@ -969,6 +1050,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           mode: "product-to-poster",
+          provider: "gemini3",
           aspectRatio,
           parallel: true,
           originalImage: image,
@@ -1276,7 +1358,7 @@ export default function Home() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_500px_at_50%_-10%,rgba(16,185,129,0.12),transparent_60%)]" />
       {/* Header */}
       <header className="px-6 py-6">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-500/90 flex items-center justify-center text-black">
               <svg
@@ -1319,17 +1401,17 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="relative z-10 flex-1 px-6 pb-16 pt-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="mx-auto w-full max-w-[1200px]">
           {/* Title Section */}
-          <div className="text-center mb-12">
+          <div className="mb-12 text-center">
             <p className="text-xs uppercase tracking-[0.3em] text-zinc-400 mb-4">Upload / Analyze / Improve</p>
-            <h1 className="text-4xl md:text-6xl font-semibold text-white mb-4 font-[var(--font-display)] tracking-tight">
+            <h1 className="mb-4 text-5xl font-semibold tracking-tight text-white font-[var(--font-display)] md:text-7xl">
               Make your poster feel <span className="text-zinc-200">inevitable</span>.
             </h1>
-            <p className="text-zinc-300 text-lg md:text-xl max-w-2xl mx-auto">
+            <p className="mx-auto max-w-3xl text-lg text-zinc-300 md:text-2xl">
               Strip the design down to what can be understood in seconds. One goal, one message, one strong feeling.
             </p>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-xs uppercase tracking-[0.3em] text-zinc-400">
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-6 text-xs uppercase tracking-[0.3em] text-zinc-400">
               {[
                 { id: 1, label: "01 Upload" },
                 { id: 2, label: "02 Analyze" },
@@ -1349,9 +1431,9 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          <div className="mx-auto grid w-full max-w-[1120px] grid-cols-1 gap-8">
             {/* Left Column - Upload & Original */}
-            <div className="space-y-6">
+            <div className="mx-auto w-full max-w-[780px] space-y-6">
               {/* Upload Area */}
               <div
                 onClick={!image ? handleClick : undefined}
@@ -1564,7 +1646,7 @@ export default function Home() {
               )}
 
               {/* Main Score Card */}
-              {analysisResult && (
+              {false && analysisResult && (
                 <div className="rounded-2xl border border-white/8 bg-zinc-950/80 shadow-[0_18px_48px_-32px_rgba(0,0,0,0.9)]">
                   <div className="p-4 sm:p-6 grid gap-6 lg:grid-cols-[0.9fr,1.1fr]">
                     <div className="rounded-2xl border border-white/6 bg-zinc-950/80 p-5">
@@ -1934,7 +2016,7 @@ export default function Home() {
               )}
             </div>
             {/* Right Column - Results */}
-            <div className="space-y-6">
+            <div className="mx-auto w-full max-w-[1120px] space-y-6">
               {isBusy && busyLabel && (
                 <div className="rounded-2xl border border-white/10 bg-zinc-950/70 p-5">
                   <div className="flex items-center justify-between text-sm">
@@ -1968,6 +2050,7 @@ export default function Home() {
               {analysisResult && (
                 <>
                   {/* Quick Insights */}
+                  {false && (
                   <div className="rounded-2xl border border-white/6 bg-zinc-950/80">
                     <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
                       <h3 className="text-base font-semibold text-white font-[var(--font-display)] tracking-tight">Quick insights</h3>
@@ -1988,22 +2071,23 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Tabs */}
-                  <div className="flex gap-2 p-2 bg-zinc-950/70 border border-white/12 rounded-2xl overflow-x-auto backdrop-blur">
+                  <div className="mx-auto flex w-full max-w-[1160px] gap-2 overflow-x-auto rounded-[18px] border border-white/[0.08] bg-[#0a0a0f]/80 p-2.5 shadow-[0_18px_48px_-32px_rgba(0,0,0,0.8)] backdrop-blur-xl">
                     {[
-                      { id: "overview", label: "Overview" },
-                      { id: "details", label: "Scores" },
-                      { id: "principles", label: "Visions" },
-                      { id: "variations", label: `Generate (${generatedImages.length})` },
+                      {
+                        id: "variations",
+                        label: generatedImages.length > 0 ? `Results (${generatedImages.length})` : "Generate",
+                      },
                     ].map((tab) => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                        className={`flex-1 py-2.5 px-4 rounded-xl font-semibold text-[14px] tracking-[0.04em] transition-all whitespace-nowrap ${
+                        className={`flex-1 rounded-[12px] px-4 py-2.5 text-[14px] font-semibold tracking-[0.02em] transition-all whitespace-nowrap ${
                           activeTab === tab.id
-                            ? "bg-[#bde7ff] text-black shadow-[0_12px_30px_-20px_rgba(140,215,255,0.6)]"
-                            : "text-zinc-400 hover:text-zinc-200"
+                            ? "bg-white text-black shadow-[0_18px_44px_-28px_rgba(255,255,255,0.85)]"
+                            : "text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-100"
                         }`}
                       >
                         {tab.label}
@@ -2365,7 +2449,215 @@ export default function Home() {
                   {/* Variations Tab */}
                   {activeTab === "variations" && (
                     <div className="space-y-6">
-{/* TWO GENERATION BUTTONS */}
+                      <div className="relative overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(circle_at_20%_0%,rgba(28,52,98,0.28),transparent_46%),radial-gradient(circle_at_100%_20%,rgba(22,34,68,0.42),transparent_42%),linear-gradient(180deg,rgba(10,14,24,0.96)_0%,rgba(6,9,16,0.98)_100%)] p-7 shadow-[0_30px_120px_rgba(10,25,70,0.35)]">
+                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(transparent_31px,rgba(255,255,255,0.03)_32px),linear-gradient(90deg,transparent_31px,rgba(255,255,255,0.03)_32px)] bg-[size:32px_32px] opacity-[0.08]" />
+                        <div className="relative mx-auto max-w-3xl text-center">
+                          <p className="text-[11px] uppercase tracking-[0.28em] text-zinc-500">Step 3 · Improve</p>
+                          <h3 className="mt-3 text-white text-4xl font-semibold font-[var(--font-display)] tracking-tight md:text-6xl">
+                            Never start from scratch
+                          </h3>
+                          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+                            Describe the direction once and get production-ready poster concepts instantly.
+                          </p>
+
+                          <div className="mt-6 rounded-[20px] border border-white/12 bg-black/35 p-3 backdrop-blur-xl">
+                            <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/90 px-2 py-2">
+                              <input
+                                value={inspirationNotes}
+                                onChange={(e) => setInspirationNotes(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleGenerateOneClick();
+                                  }
+                                }}
+                                placeholder="Create a landing page for..."
+                                className="w-full bg-transparent px-2 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+                              />
+                              <button
+                                onClick={() => handleGenerateOneClick()}
+                                disabled={isGenerating}
+                                className={`h-10 min-w-[46px] rounded-xl px-3 text-sm font-semibold transition-all ${
+                                  isGenerating
+                                    ? "cursor-not-allowed bg-zinc-800 text-zinc-500"
+                                    : "bg-[#bde7ff] text-black hover:bg-[#d2efff] shadow-[0_10px_28px_rgba(189,231,255,0.35)]"
+                                }`}
+                              >
+                                {isGenerating ? "..." : "↗"}
+                              </button>
+                            </div>
+                            <div className="mt-3 flex flex-wrap justify-center gap-2">
+                              {quickGeneratePrompts.map((preset) => (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() => applyQuickGeneratePrompt(preset)}
+                                  disabled={isGenerating}
+                                  className={`rounded-full border border-zinc-700 bg-zinc-800/55 px-3 py-1 text-xs text-zinc-300 transition-all hover:border-zinc-500 hover:bg-zinc-700/70 ${
+                                    isGenerating ? "cursor-not-allowed opacity-60" : ""
+                                  }`}
+                                >
+                                  {preset}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const tools = document.getElementById("generate-tools");
+                              if (tools) tools.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }}
+                            className="mt-4 text-sm text-zinc-300 underline underline-offset-4 hover:text-white"
+                          >
+                            See all AI tools
+                          </button>
+                        </div>
+
+                        <div id="generate-tools" className="relative mt-8 grid gap-3 md:grid-cols-2">
+                          <div className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4 backdrop-blur-sm transition-all hover:border-white/20 hover:bg-zinc-900/65">
+                            <p className="text-lg font-semibold text-white">Wireframer</p>
+                            <p className="mt-2 text-sm text-zinc-400">
+                              Skip the blank canvas and generate a responsive direction instantly.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setSimpleModePreference("auto")}
+                              className="mt-3 rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white hover:bg-white/10"
+                            >
+                              Try Wireframer
+                            </button>
+                          </div>
+
+                          <div className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4 backdrop-blur-sm transition-all hover:border-white/20 hover:bg-zinc-900/65">
+                            <p className="text-lg font-semibold text-white">Workshop</p>
+                            <p className="mt-2 text-sm text-zinc-400">
+                              Use advanced controls for deeper refinements and custom outputs.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const advanced = document.getElementById("generate-advanced") as HTMLDetailsElement | null;
+                                if (advanced) {
+                                  advanced.open = true;
+                                  advanced.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                                }
+                              }}
+                              className="mt-3 rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white hover:bg-white/10"
+                            >
+                              Try Workshop
+                            </button>
+                          </div>
+
+                          <div className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4 backdrop-blur-sm transition-all hover:border-white/20 hover:bg-zinc-900/65">
+                            <p className="text-lg font-semibold text-white">AI Translate</p>
+                            <p className="mt-2 text-sm text-zinc-400">
+                              Keep structure and adapt style safely for broad audience readability.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setSimpleModePreference("artistic")}
+                              className="mt-3 rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white hover:bg-white/10"
+                            >
+                              Try AI Translate
+                            </button>
+                          </div>
+
+                          <div className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4 backdrop-blur-sm transition-all hover:border-white/20 hover:bg-zinc-900/65">
+                            <p className="text-lg font-semibold text-white">AI Plugins</p>
+                            <p className="mt-2 text-sm text-zinc-400">
+                              Run full makeover mode for high-impact redesign with stronger hierarchy.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setSimpleModePreference("redesign")}
+                              className="mt-3 rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white hover:bg-white/10"
+                            >
+                              Start with Plugins
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="relative mt-6 flex flex-wrap items-center justify-center gap-2">
+                          <span className="rounded-full border border-[#bde7ff]/50 bg-[#bde7ff]/15 px-3 py-1 text-xs font-medium text-[#e8f7ff]">
+                            Auto mode: {oneClickModeLabel}
+                          </span>
+                          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-zinc-300">
+                            Ratio: {aspectRatio}
+                          </span>
+                          <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200">
+                            Logo/Text Lock: ON
+                          </span>
+                          <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-zinc-300">
+                            Expected time: 35-60 seconds
+                          </span>
+                        </div>
+
+                        <details id="generate-advanced" className="mt-4 rounded-xl border border-zinc-800/80 bg-zinc-900/35 p-3">
+                          <summary className="cursor-pointer list-none text-xs font-medium text-zinc-300">
+                            Advanced (optional)
+                          </summary>
+                          <div className="mt-3 space-y-4">
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-zinc-500">Mode selection</p>
+                              <div className="mt-2 grid grid-cols-3 gap-2">
+                                {[
+                                  { value: "auto", label: "Auto" },
+                                  { value: "artistic", label: "Style" },
+                                  { value: "redesign", label: "Redesign" },
+                                ].map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    disabled={isGenerating}
+                                    onClick={() => setSimpleModePreference(opt.value as typeof simpleModePreference)}
+                                    className={`rounded-lg border px-2 py-1 text-xs transition-all ${
+                                      simpleModePreference === opt.value
+                                        ? "bg-white text-zinc-900 border-white"
+                                        : "bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-700/70"
+                                    } ${isGenerating ? "opacity-60 cursor-not-allowed" : ""}`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-zinc-500">Aspect ratio</p>
+                              {ratioLockedToSource && (
+                                <p className="mt-1 text-xs text-zinc-500">Locked to uploaded poster ratio</p>
+                              )}
+                              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                                {[
+                                  { value: "9:16", label: "Portrait" },
+                                  { value: "16:9", label: "Landscape" },
+                                  { value: "1:1", label: "Square" },
+                                  { value: "4:5", label: "Instagram" },
+                                  { value: "3:4", label: "Standard" },
+                                ].map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    type="button"
+                                    disabled={isGenerating || ratioLockedToSource}
+                                    onClick={() => setAspectRatio(opt.value as AspectRatio)}
+                                    className={`rounded-lg border px-2 py-1 text-xs transition-all ${
+                                      aspectRatio === opt.value
+                                        ? "bg-white text-zinc-900 border-white"
+                                        : "bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-700/70"
+                                    } ${(isGenerating || ratioLockedToSource) ? "opacity-60 cursor-not-allowed" : ""}`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </details>
+                      </div>
+
+                      {false && (
                       <div className="space-y-3">
                         <div className="grid gap-3 md:grid-cols-2">
                           <button
@@ -2569,7 +2861,7 @@ export default function Home() {
                             <div className="text-xs text-zinc-500">
                               {selectionActive
                                 ? `Selected styles: ${selectedArtisticStyles.length}`
-                                : `Extra styles: ${defaultArtisticCount} total`}
+                                : `Top traffic set ${normalizedArtisticBatch + 1}/${totalArtisticBatches} • ${defaultArtisticCount} styles`}
                             </div>
                             <div className="flex items-center gap-2">
                               {selectionActive && (
@@ -2583,90 +2875,65 @@ export default function Home() {
                                       : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
                                   }`}
                                 >
-                                  Clear
+                                    Clear
                                 </button>
                               )}
                               <button
                                 type="button"
-                                disabled={isGenerating || selectionActive}
-                                onClick={() => setArtisticExtra((prev) => !prev)}
+                                disabled={isGenerating}
+                                onClick={cycleArtisticStyleBatch}
                                 className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-                                  artisticExtra
-                                    ? "bg-white text-black"
-                                    : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700"
-                                } ${isGenerating || selectionActive ? "opacity-60 cursor-not-allowed" : ""}`}
+                                  isGenerating
+                                    ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                                    : "bg-white text-black hover:bg-zinc-200"
+                                }`}
                               >
-                                {artisticExtra ? "Extra ON" : "Extra OFF"}
+                                Next 4
                               </button>
                             </div>
                           </div>
 
                           <div className="mt-3 text-xs text-zinc-500">
-                            Select styles to generate only those. Leave empty to use the default set.
+                            First generate uses top-traffic 4 styles. If results are not good, press <span className="text-zinc-300 font-semibold">Next 4</span>.
                           </div>
 
-                          <div className="mt-4 grid gap-2 md:grid-cols-2">
-                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                              <div className="text-xs uppercase tracking-wide text-zinc-500">Recommended</div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {ARTISTIC_STYLE_GROUPS.recommended.map((style) => {
-                                  const key = style.key as ArtisticStyleKey;
-                                  const active = selectedArtisticStyles.includes(key);
-                                  return (
-                                    <button
-                                      key={style.key}
-                                      type="button"
-                                      disabled={isGenerating}
-                                      onClick={() => toggleArtisticStyle(key)}
-                                      className={`rounded-full border px-2 py-1 text-xs transition-all ${
-                                        active
-                                          ? "bg-white text-black border-white"
-                                          : "bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-700/70"
-                                      } ${isGenerating ? "opacity-60 cursor-not-allowed" : ""}`}
-                                    >
-                                      <span className="mr-1 text-[10px] font-semibold">{style.icon}</span>
-                                      {style.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                          <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                            <div className="text-xs uppercase tracking-wide text-zinc-500">
+                              Recommended now (Top traffic 4)
                             </div>
-                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                              <div className="text-xs uppercase tracking-wide text-zinc-500">More styles</div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {ARTISTIC_STYLE_GROUPS.more.map((style) => {
-                                  const key = style.key as ArtisticStyleKey;
-                                  const active = selectedArtisticStyles.includes(key);
-                                  return (
-                                    <button
-                                      key={style.key}
-                                      type="button"
-                                      disabled={isGenerating}
-                                      onClick={() => toggleArtisticStyle(key)}
-                                      className={`rounded-full border px-2 py-1 text-xs transition-all ${
-                                        active
-                                          ? "bg-white text-black border-white"
-                                          : "bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-700/70"
-                                      } ${isGenerating ? "opacity-60 cursor-not-allowed" : ""}`}
-                                    >
-                                      <span className="mr-1 text-[10px] font-semibold">{style.icon}</span>
-                                      {style.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {autoRecommendedStyles.map((key) => {
+                                const style = ARTISTIC_STYLE_META[key];
+                                const active = selectedArtisticStyles.includes(key);
+                                return (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    disabled={isGenerating}
+                                    onClick={() => toggleArtisticStyle(key)}
+                                    className={`rounded-full border px-2 py-1 text-xs transition-all ${
+                                      active
+                                        ? "bg-white text-black border-white"
+                                        : "bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:bg-zinc-700/70"
+                                    } ${isGenerating ? "opacity-60 cursor-not-allowed" : ""}`}
+                                  >
+                                    <span className="mr-1 text-[10px] font-semibold">{style.icon}</span>
+                                    {style.label}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
 
                           <div className="mt-2 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                            <div className="text-xs uppercase tracking-wide text-zinc-500">Trending</div>
+                            <div className="text-xs uppercase tracking-wide text-zinc-500">All 10 styles</div>
                             <div className="mt-2 flex flex-wrap gap-2">
-                              {ARTISTIC_STYLE_GROUPS.trending.map((style) => {
-                                const key = style.key as ArtisticStyleKey;
+                              {ARTISTIC_STYLE_TRAFFIC_ORDER.map((key) => {
+                                const style = ARTISTIC_STYLE_META[key];
                                 const active = selectedArtisticStyles.includes(key);
                                 return (
                                   <button
-                                    key={style.key}
+                                    key={key}
                                     type="button"
                                     disabled={isGenerating}
                                     onClick={() => toggleArtisticStyle(key)}
@@ -2755,151 +3022,175 @@ export default function Home() {
                           PS = Preserve style and enhance | RD = Rebuild the design
                         </p>
                       </div>
+                      )}
 
                       {generatedImages.length === 0 ? (
-                        <div className="p-8 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-center">
-                          <svg className="w-16 h-16 text-zinc-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <p className="text-zinc-400 mb-4">
-                            To create an improved version, use the button in the &quot;Overview&quot; tab.
-                          </p>
-                          <button
-                            onClick={() => setActiveTab("overview")}
-                            className="text-zinc-200 hover:text-white text-[11px] tracking-[0.08em] normal-case"
-                          >
-                            Go to Overview
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <p className="text-zinc-400 text-xs text-center mb-3">
-                            Generated images received: {generatedImages.length}
-                          </p>
-
-                          {/* Variation Grid */}
-                          <div className="grid grid-cols-2 gap-3">
-                            {generatedImages.map((genImg, idx) => (
-                              <button
-                                key={idx}
-                                onClick={() => {
-                                  setSelectedVariation(idx);
-                                  setCompareValue(50);
-                                  sendFeedback({
-                                    action: "select",
-                                    variationId: generatedImages[idx]?.variationId,
-                                    index: idx,
-                                  });
-                                }}
-                                className={`relative aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all ${
-                                  selectedVariation === idx
-                                    ? "border-[#bde7ff] ring-2 ring-[#bde7ff]/40"
-                                    : "border-zinc-700 hover:border-zinc-500"
-                                }`}
-                              >
-                                {bestVariationIndex === idx && (
-                                  <div className="absolute left-2 top-2 z-10 rounded-full bg-[#bde7ff] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black shadow">
-                                    Best pick
-                                  </div>
-                                )}
-                                  <img
-                                  src={normalizeImageData(genImg.imageData)}
-                                  alt={genImg.name || `Variation ${idx + 1}`}
-                                  className="absolute inset-0 h-full w-full object-cover"
-                                />
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                                  <p className="text-white text-xs font-medium">
-                                    {genImg.name || `Variation ${idx + 1}`}
-                                  </p>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-
-                          {/* Selected Variation Details */}
-                          {selectedVariation !== null && generatedImages[selectedVariation] && (
-                            <div className="p-5 rounded-2xl bg-zinc-950/70 border border-white/10 space-y-4">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h3 className="text-white font-semibold">
-                                    {generatedImages[selectedVariation].name || `Variation ${selectedVariation + 1}`}
-                                  </h3>
-                                  {selectedVariation === bestVariationIndex && (
-                                    <span className="mt-1 inline-flex rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-zinc-200">
-                                      Best pick
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleDownload(
-                                      generatedImages[selectedVariation].imageData,
-                                      selectedVariation
-                                    )}
-                                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                    Download
-                                  </button>
-                                </div>
-                              </div>
-
-                              {image && (
-                                <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
-                                  <div className="flex items-center justify-between text-xs text-zinc-400">
-                                    <span>Before / After</span>
-                                    <span>{compareValue}% improved</span>
-                                  </div>
-                                  <div className="relative mt-3 aspect-[3/4] w-full overflow-hidden rounded-lg border border-zinc-800 bg-black/70">
-                                    <img
-                                      src={image}
-                                      alt="Original poster"
-                                      className="absolute inset-0 h-full w-full object-cover"
-                                    />
-                                    <div
-                                      className="absolute inset-0 overflow-hidden transition-[clip-path] duration-150 ease-out"
-                                      style={{ clipPath: `inset(0 ${100 - compareValue}% 0 0)` }}
-                                    >
-                                    <img
-                                      src={normalizeImageData(generatedImages[selectedVariation].imageData)}
-                                        alt="Improved poster"
-                                        className="absolute inset-0 h-full w-full object-cover"
-                                      />
-                                    </div>
-                                    <div
-                                      className="absolute top-0 h-full w-1 bg-emerald-400/90 shadow transition-[left] duration-150 ease-out"
-                                      style={{ left: `calc(${compareValue}% - 2px)` }}
-                                    />
-                                    <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] uppercase text-white">
-                                      Before
-                                    </span>
-                                    <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] uppercase text-white">
-                                      After
-                                    </span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min={0}
-                                    max={100}
-                                    value={compareValue}
-                                    onChange={(e) => setCompareValue(Number(e.target.value))}
-                                    className="mt-3 w-full accent-emerald-400"
-                                  />
-                                </div>
-                              )}
-
-                              {/* Prompt Display */}
-                              <div className="border-t border-zinc-700 pt-4">
-                                <h4 className="text-zinc-400 text-xs font-medium mb-2">Prompt:</h4>
-                                <p className="text-zinc-500 text-xs bg-zinc-800/50 rounded-lg p-2 max-h-20 overflow-y-auto">
-                                  {generatedImages[selectedVariation].prompt?.slice(0, 200)}...
-                                </p>
-                              </div>
+                        <div className="relative overflow-hidden rounded-[24px] border border-white/[0.10] bg-[#0a0a0f]/90 p-10 text-center shadow-[0_32px_90px_-64px_rgba(103,140,255,0.6)]">
+                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.14),transparent_45%)]" />
+                          {isGenerating ? (
+                            <div className="relative z-10 space-y-3">
+                              <svg className="mx-auto h-10 w-10 animate-spin text-[#bde7ff]" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" />
+                              </svg>
+                              <p className="text-sm font-medium text-zinc-100">Generating your design...</p>
+                              <p className="text-xs text-zinc-500">Keep this tab open. Results will appear automatically.</p>
+                            </div>
+                          ) : (
+                            <div className="relative z-10 space-y-3">
+                              <svg className="mx-auto h-14 w-14 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <p className="text-sm text-zinc-300">Press &quot;Generate&quot; to create your first version.</p>
                             </div>
                           )}
-                        </>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="space-y-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-white/[0.10] bg-[#0a0a10]/85 px-4 py-3 shadow-[0_18px_52px_-36px_rgba(0,0,0,0.85)]">
+                              <div>
+                                <p className="text-[11px] tracking-[0.08em] text-zinc-500">Generated</p>
+                                <p className="text-sm font-semibold text-zinc-100">{generatedImages.length} versions ready</p>
+                              </div>
+                              {bestVariationIndex !== null && generatedImages[bestVariationIndex] && (
+                                <button
+                                  onClick={() => handleDownload(
+                                    generatedImages[bestVariationIndex].imageData,
+                                    bestVariationIndex
+                                  )}
+                                  className="rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold text-zinc-100 transition hover:bg-white/20"
+                                >
+                                  Download best
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+                              {generatedImages.map((genImg, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => {
+                                    setSelectedVariation(idx);
+                                    setCompareValue(50);
+                                    sendFeedback({
+                                      action: "select",
+                                      variationId: generatedImages[idx]?.variationId,
+                                      index: idx,
+                                    });
+                                  }}
+                                  className={`group relative aspect-[3/4] overflow-hidden rounded-[18px] border transition-all ${
+                                    selectedVariation === idx
+                                      ? "border-white/70 ring-2 ring-white/20"
+                                      : "border-white/10 hover:border-white/25"
+                                  }`}
+                                >
+                                  {bestVariationIndex === idx && (
+                                    <div className="absolute left-2 top-2 z-10 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black shadow">
+                                      Best pick
+                                    </div>
+                                  )}
+                                  <img
+                                    src={normalizeImageData(genImg.imageData)}
+                                    alt={genImg.name || `Variation ${idx + 1}`}
+                                    className="absolute inset-0 h-full w-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/10" />
+                                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-2">
+                                    <p className="text-white text-xs font-medium">
+                                      {genImg.name || `Variation ${idx + 1}`}
+                                    </p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="w-full">
+                            {selectedVariation !== null && generatedImages[selectedVariation] ? (
+                              <div className="space-y-4 rounded-[20px] border border-white/[0.10] bg-[#0a0a10]/90 p-5 shadow-[0_24px_70px_-48px_rgba(0,0,0,0.9)]">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h3 className="text-white font-semibold">
+                                      {generatedImages[selectedVariation].name || `Variation ${selectedVariation + 1}`}
+                                    </h3>
+                                    {selectedVariation === bestVariationIndex && (
+                                      <span className="mt-1 inline-flex rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-zinc-200">
+                                        Best pick
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleDownload(
+                                        generatedImages[selectedVariation].imageData,
+                                        selectedVariation
+                                      )}
+                                      className="flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-zinc-100 transition hover:bg-white/20"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                      </svg>
+                                      Download
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {false && image && (
+                                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
+                                    <div className="flex items-center justify-between text-xs text-zinc-400">
+                                      <span>Before / After</span>
+                                      <span>{compareValue}% improved</span>
+                                    </div>
+                                    <div className="relative mt-3 aspect-[3/4] w-full overflow-hidden rounded-lg border border-zinc-800 bg-black/70">
+                                      <img
+                                        src={image}
+                                        alt="Original poster"
+                                        className="absolute inset-0 h-full w-full object-cover"
+                                      />
+                                      <div
+                                        className="absolute inset-0 overflow-hidden transition-[clip-path] duration-150 ease-out"
+                                        style={{ clipPath: `inset(0 ${100 - compareValue}% 0 0)` }}
+                                      >
+                                      <img
+                                        src={normalizeImageData(generatedImages[selectedVariation].imageData)}
+                                          alt="Improved poster"
+                                          className="absolute inset-0 h-full w-full object-cover"
+                                        />
+                                      </div>
+                                      <div
+                                        className="absolute top-0 h-full w-1 bg-emerald-400/90 shadow transition-[left] duration-150 ease-out"
+                                        style={{ left: `calc(${compareValue}% - 2px)` }}
+                                      />
+                                      <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] uppercase text-white">
+                                        Before
+                                      </span>
+                                      <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 text-[10px] uppercase text-white">
+                                        After
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min={0}
+                                      max={100}
+                                      value={compareValue}
+                                      onChange={(e) => setCompareValue(Number(e.target.value))}
+                                      className="mt-3 w-full accent-emerald-400"
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
+                                  Tip: Select a version from the grid, then download your final pick.
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-[20px] border border-white/[0.10] bg-[#0a0a10]/90 p-5 text-center text-sm text-zinc-400 shadow-[0_24px_70px_-48px_rgba(0,0,0,0.9)]">
+                                Select a version to preview details and download.
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}

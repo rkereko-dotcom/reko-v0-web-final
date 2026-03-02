@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import sharp from "sharp";
 import fs from "fs";
@@ -29,7 +29,7 @@ function saveImageToDisk(imageData: string, variationName: string, index: number
   if (base64Match) {
     const buffer = Buffer.from(base64Match[2], "base64");
     fs.writeFileSync(filePath, buffer);
-    console.log(`💾 Saved: ${filename}`);
+    console.log(`ðŸ’¾ Saved: ${filename}`);
     return filePath;
   }
   return "";
@@ -154,6 +154,7 @@ interface GenerateRequest {
   artisticColorFidelity?: "preserve" | "explore";
   artisticExtra?: boolean;
   artisticStyles?: string[];
+  artisticStyleBatch?: number;
   inspirationNotes?: string;
   gradientPreset?: "auto" | "mesh-soft" | "duotone-wash" | "dark-spotlight" | "warm-film";
 }
@@ -290,6 +291,18 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMes
   }
 }
 
+async function readResponseJsonWithTimeout<T>(
+  response: Response,
+  timeoutMs: number,
+  context: string
+): Promise<T> {
+  return withTimeout(
+    response.json() as Promise<T>,
+    timeoutMs,
+    `${context} response parse timeout after ${timeoutMs}ms`
+  );
+}
+
 function isHardQuotaError(message: string): boolean {
   return /quota exceeded/i.test(message) && /limit:\s*0/i.test(message);
 }
@@ -330,10 +343,11 @@ async function verifyLogoIdentityWithGemini(
 
   const prompt = `Compare the two poster images and evaluate ONLY the logo icon + wordmark identity.
 Return ONLY strict JSON:
-{"match": true|false, "icon_match": true|false, "confidence": number, "reason": string, "wordmark_source": string, "wordmark_generated": string}
+{"match": true|false, "icon_match": true|false, "confidence": number, "reason": string, "wordmark_source": string, "wordmark_generated": string, "duplicate_or_ghost": true|false, "extra_logo_count": number}
 Rules:
 - "match" must be false if any wordmark letters differ (including missing/extra/reordered letters), if casing changes, if icon shape is redrawn, if logo is duplicated, if logo orientation changes, or if logo position/size changes.
 - "icon_match" must be false if icon silhouette/inner geometry differs in any way.
+- Any duplicate, echo, faint ghost, shadow-copy, or second logo/icon/wordmark anywhere in the image must set match=false and duplicate_or_ghost=true.
 - If uncertain, set match=false and icon_match=false.
 - Ignore background/color/style changes outside the logo mark.
 ${expectedWordmarkRule}`;
@@ -361,7 +375,11 @@ ${expectedWordmarkRule}`;
     );
 
     if (!response.ok) return false;
-    const data = await response.json().catch(() => ({}));
+    const data = await readResponseJsonWithTimeout<Record<string, unknown>>(
+      response,
+      GEMINI_VERIFY_TIMEOUT_MS,
+      "Logo verify"
+    ).catch(() => ({}));
     const parts = data?.candidates?.[0]?.content?.parts || [];
     const responseText = parts
       .map((part: { text?: string }) => part.text)
@@ -376,6 +394,8 @@ ${expectedWordmarkRule}`;
       confidence?: unknown;
       wordmark_source?: unknown;
       wordmark_generated?: unknown;
+      duplicate_or_ghost?: unknown;
+      extra_logo_count?: unknown;
     };
 
     const matchValue =
@@ -386,6 +406,8 @@ ${expectedWordmarkRule}`;
           : false;
     const iconMatchValue = typeof parsed.icon_match === "boolean" ? parsed.icon_match : false;
     const confidenceValue = typeof parsed.confidence === "number" ? parsed.confidence : 0;
+    const duplicateOrGhostValue = typeof parsed.duplicate_or_ghost === "boolean" ? parsed.duplicate_or_ghost : false;
+    const extraLogoCountValue = typeof parsed.extra_logo_count === "number" ? parsed.extra_logo_count : 1;
     const sourceWordmark = typeof parsed.wordmark_source === "string" ? parsed.wordmark_source.trim() : "";
     const generatedWordmark = typeof parsed.wordmark_generated === "string" ? parsed.wordmark_generated.trim() : "";
     const normalizeWordmark = (value: string) =>
@@ -408,6 +430,9 @@ ${expectedWordmarkRule}`;
         return false;
       }
     }
+
+    if (duplicateOrGhostValue) return false;
+    if (Number.isFinite(extraLogoCountValue) && extraLogoCountValue > 1) return false;
 
     if (confidenceValue < 0.9) return false;
     return Boolean(matchValue && iconMatchValue);
@@ -470,16 +495,25 @@ const ARTISTIC_STYLE_BASE_KEYS: ArtisticStyleKey[] = [
   "elevated",
 ];
 const ARTISTIC_STYLE_EXTRA_KEYS: ArtisticStyleKey[] = ["riso", "paper", "ink", "halftone"];
-
 function resolveArtisticStyles(selectedKeys?: string[], useExtra?: boolean) {
-  const selected = (selectedKeys || []).filter((key): key is ArtisticStyleKey => key in ARTISTIC_STYLE_LIBRARY);
+  const selected = (selectedKeys || [])
+    .filter((key): key is ArtisticStyleKey => key in ARTISTIC_STYLE_LIBRARY)
+    ;
   if (selected.length > 0) {
     return selected
       .map((key) => ({ key, ...ARTISTIC_STYLE_LIBRARY[key] }))
       .filter((style) => style.prompt);
   }
-  const base = ARTISTIC_STYLE_BASE_KEYS.map((key) => ({ key, ...ARTISTIC_STYLE_LIBRARY[key] }));
-  const extra = useExtra ? ARTISTIC_STYLE_EXTRA_KEYS.map((key) => ({ key, ...ARTISTIC_STYLE_LIBRARY[key] })) : [];
+  const base = ARTISTIC_STYLE_BASE_KEYS.map((key) => ({
+    key,
+    ...ARTISTIC_STYLE_LIBRARY[key],
+  }));
+  const extra = useExtra
+    ? ARTISTIC_STYLE_EXTRA_KEYS.map((key) => ({
+        key,
+        ...ARTISTIC_STYLE_LIBRARY[key],
+      }))
+    : [];
   return [...base, ...extra].filter((style) => style.prompt);
 }
 
@@ -651,9 +685,9 @@ PRESET: RETRO POSTER
 `,
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ✏️ SKETCH-TO-DESIGN - Гар зургаас мэргэжлийн дизайн үүсгэх
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// âœï¸ SKETCH-TO-DESIGN - Ð“Ð°Ñ€ Ð·ÑƒÑ€Ð³Ð°Ð°Ñ Ð¼ÑÑ€Ð³ÑÐ¶Ð»Ð¸Ð¹Ð½ Ð´Ð¸Ð·Ð°Ð¹Ð½ Ò¯Ò¯ÑÐ³ÑÑ…
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function generateSketchToDesignPrompts(
   sketchInputs?: SketchInputs,
@@ -675,49 +709,49 @@ function generateSketchToDesignPrompts(
   const styleGuides: Record<string, string> = {
     minimal: `
 MINIMAL STYLE:
-• Clean white or light gray background
-• Maximum 2 colors (black + 1 accent)
-• Sans-serif fonts (Helvetica, Inter, Montserrat)
-• Lots of white space (60%+)
-• Simple geometric shapes
-• No gradients, no shadows
-• Typography as the hero element`,
+â€¢ Clean white or light gray background
+â€¢ Maximum 2 colors (black + 1 accent)
+â€¢ Sans-serif fonts (Helvetica, Inter, Montserrat)
+â€¢ Lots of white space (60%+)
+â€¢ Simple geometric shapes
+â€¢ No gradients, no shadows
+â€¢ Typography as the hero element`,
     bold: `
 BOLD STYLE:
-• High contrast colors (black/yellow, red/white)
-• Extra bold, impactful fonts
-• Large text that commands attention
-• Strong geometric shapes
-• Accent color used sparingly but powerfully
-• Energetic, urgent feeling
-• Some texture or grain allowed`,
+â€¢ High contrast colors (black/yellow, red/white)
+â€¢ Extra bold, impactful fonts
+â€¢ Large text that commands attention
+â€¢ Strong geometric shapes
+â€¢ Accent color used sparingly but powerfully
+â€¢ Energetic, urgent feeling
+â€¢ Some texture or grain allowed`,
     playful: `
 PLAYFUL STYLE:
-• Bright, fun colors (pink, orange, teal, yellow)
-• Rounded fonts, friendly typography
-• Organic shapes, curves
-• Illustrations or icons
-• Gradient backgrounds allowed
-• Fun, energetic composition
-• Can include subtle patterns`,
+â€¢ Bright, fun colors (pink, orange, teal, yellow)
+â€¢ Rounded fonts, friendly typography
+â€¢ Organic shapes, curves
+â€¢ Illustrations or icons
+â€¢ Gradient backgrounds allowed
+â€¢ Fun, energetic composition
+â€¢ Can include subtle patterns`,
     premium: `
 PREMIUM STYLE:
-• Dark background (black, navy, deep gray)
-• Gold, silver, or copper accents
-• Elegant serif or thin sans-serif fonts
-• Subtle luxury textures
-• Refined spacing and alignment
-• High-end product photography feel
-• Minimalist but expensive feeling`,
+â€¢ Dark background (black, navy, deep gray)
+â€¢ Gold, silver, or copper accents
+â€¢ Elegant serif or thin sans-serif fonts
+â€¢ Subtle luxury textures
+â€¢ Refined spacing and alignment
+â€¢ High-end product photography feel
+â€¢ Minimalist but expensive feeling`,
     dark: `
 DARK STYLE:
-• Deep black or dark gray background
-• Neon accents (cyan, magenta, lime)
-• Modern, tech-inspired fonts
-• Glowing effects on text
-• Sharp, angular shapes
-• Cyberpunk or gaming aesthetic
-• High contrast elements`
+â€¢ Deep black or dark gray background
+â€¢ Neon accents (cyan, magenta, lime)
+â€¢ Modern, tech-inspired fonts
+â€¢ Glowing effects on text
+â€¢ Sharp, angular shapes
+â€¢ Cyberpunk or gaming aesthetic
+â€¢ High contrast elements`
   };
 
   // Category-specific elements
@@ -731,27 +765,27 @@ DARK STYLE:
 
   const layoutDescription = sketchLayout ? `
 DETECTED LAYOUT FROM SKETCH:
-• Header: ${sketchLayout.header_area}
-• Main: ${sketchLayout.main_area}
-• Footer: ${sketchLayout.footer_area}
-• Elements: ${sketchLayout.elements.join(", ")}
-• Hierarchy: ${sketchLayout.hierarchy}
+â€¢ Header: ${sketchLayout.header_area}
+â€¢ Main: ${sketchLayout.main_area}
+â€¢ Footer: ${sketchLayout.footer_area}
+â€¢ Elements: ${sketchLayout.elements.join(", ")}
+â€¢ Hierarchy: ${sketchLayout.hierarchy}
 
 RESPECT THIS LAYOUT STRUCTURE!
 ` : "";
 
   const textContent = `
 TEXT TO INCLUDE:
-• Headline: "${headline}"
-${subheadline ? `• Subheadline: "${subheadline}"` : ""}
-${price ? `• Price/Discount: "${price}"` : ""}
-${cta ? `• CTA Button: "${cta}"` : ""}
-${brand ? `• Brand: "${brand}"` : ""}
-${additionalText ? `• Additional: "${additionalText}"` : ""}
+â€¢ Headline: "${headline}"
+${subheadline ? `â€¢ Subheadline: "${subheadline}"` : ""}
+${price ? `â€¢ Price/Discount: "${price}"` : ""}
+${cta ? `â€¢ CTA Button: "${cta}"` : ""}
+${brand ? `â€¢ Brand: "${brand}"` : ""}
+${additionalText ? `â€¢ Additional: "${additionalText}"` : ""}
 `;
 
   const basePrompt = `
-✏️ SKETCH-TO-DESIGN: Create a professional poster design
+âœï¸ SKETCH-TO-DESIGN: Create a professional poster design
 
 YOU ARE LOOKING AT A HAND-DRAWN SKETCH.
 Your job is to transform this sketch into a PROFESSIONAL, POLISHED design.
@@ -760,15 +794,15 @@ ${layoutDescription}
 
 ${textContent}
 
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 STYLE REQUIREMENTS:
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ${styleGuides[style]}
 
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 CATEGORY: ${category.toUpperCase()}
 ${categoryGuides[category]}
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 IMPORTANT RULES:
 1. Follow the LAYOUT from the sketch
@@ -782,7 +816,7 @@ IMPORTANT RULES:
 
   return [
     {
-      name: "🎯 Layout Faithful",
+      name: "ðŸŽ¯ Layout Faithful",
       prompt: `${basePrompt}
 
 VARIATION: LAYOUT FAITHFUL
@@ -791,7 +825,7 @@ The positioning of elements should match the sketch exactly.
 Focus on clean execution of the sketched composition.`
     },
     {
-      name: "✨ Enhanced",
+      name: "âœ¨ Enhanced",
       prompt: `${basePrompt}
 
 VARIATION: ENHANCED
@@ -800,7 +834,7 @@ Add subtle enhancements: better spacing, refined alignment.
 Make it look even more professional than the sketch suggested.`
     },
     {
-      name: "🔥 Bold Statement",
+      name: "ðŸ”¥ Bold Statement",
       prompt: `${basePrompt}
 
 VARIATION: BOLD STATEMENT
@@ -809,7 +843,7 @@ Increase the visual weight of the main message.
 The headline should grab attention immediately.`
     },
     {
-      name: "🎨 Creative Twist",
+      name: "ðŸŽ¨ Creative Twist",
       prompt: `${basePrompt}
 
 VARIATION: CREATIVE TWIST
@@ -820,9 +854,9 @@ Make it memorable while staying true to the sketch's intent.`
   ];
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 📦 PRODUCT-TO-POSTER - Product зургаас маркетингийн poster үүсгэх
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ðŸ“¦ PRODUCT-TO-POSTER - Product Ð·ÑƒÑ€Ð³Ð°Ð°Ñ Ð¼Ð°Ñ€ÐºÐµÑ‚Ð¸Ð½Ð³Ð¸Ð¹Ð½ poster Ò¯Ò¯ÑÐ³ÑÑ…
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function generateProductToPosterPrompts(
   productInputs?: ProductInputs,
@@ -905,37 +939,37 @@ BOLD STYLE:
   // Target audience adaptation
   const audienceGuide = productInfo ? `
 TARGET AUDIENCE ADAPTATION:
-• Age: ${productInfo.target_demographic.age_range}
-  ${productInfo.target_demographic.age_range === 'kids' ? '→ COLORFUL, FUN, 3D CARTOON style!' : ''}
-  ${productInfo.target_demographic.age_range === 'teens' ? '→ TRENDY, BOLD, SOCIAL MEDIA style!' : ''}
-  ${productInfo.target_demographic.age_range === 'young_adults' ? '→ MODERN, ASPIRATIONAL style!' : ''}
-  ${productInfo.target_demographic.age_range === 'adults' ? '→ SOPHISTICATED, PREMIUM style!' : ''}
-• Gender: ${productInfo.target_demographic.gender}
-• Lifestyle: ${productInfo.target_demographic.lifestyle}
-• Product type: ${productInfo.product_type}
-• Price tier: ${productInfo.price_positioning}
+â€¢ Age: ${productInfo.target_demographic.age_range}
+  ${productInfo.target_demographic.age_range === 'kids' ? 'â†’ COLORFUL, FUN, 3D CARTOON style!' : ''}
+  ${productInfo.target_demographic.age_range === 'teens' ? 'â†’ TRENDY, BOLD, SOCIAL MEDIA style!' : ''}
+  ${productInfo.target_demographic.age_range === 'young_adults' ? 'â†’ MODERN, ASPIRATIONAL style!' : ''}
+  ${productInfo.target_demographic.age_range === 'adults' ? 'â†’ SOPHISTICATED, PREMIUM style!' : ''}
+â€¢ Gender: ${productInfo.target_demographic.gender}
+â€¢ Lifestyle: ${productInfo.target_demographic.lifestyle}
+â€¢ Product type: ${productInfo.product_type}
+â€¢ Price tier: ${productInfo.price_positioning}
 ` : "";
 
   const productInsights = productInfo ? `
 PRODUCT INSIGHTS (use for emphasis only; do NOT invent):
-${productInfo.primary_claim ? `• Primary claim: ${productInfo.primary_claim}` : ""}
-${productInfo.key_features?.length ? `• Key features: ${productInfo.key_features.join(", ")}` : ""}
-${productInfo.benefits?.length ? `• Benefits: ${productInfo.benefits.join(", ")}` : ""}
-${productInfo.differentiators?.length ? `• Differentiators: ${productInfo.differentiators.join(", ")}` : ""}
-${productInfo.reasons_to_believe?.length ? `• Reasons to believe: ${productInfo.reasons_to_believe.join(", ")}` : ""}
+${productInfo.primary_claim ? `â€¢ Primary claim: ${productInfo.primary_claim}` : ""}
+${productInfo.key_features?.length ? `â€¢ Key features: ${productInfo.key_features.join(", ")}` : ""}
+${productInfo.benefits?.length ? `â€¢ Benefits: ${productInfo.benefits.join(", ")}` : ""}
+${productInfo.differentiators?.length ? `â€¢ Differentiators: ${productInfo.differentiators.join(", ")}` : ""}
+${productInfo.reasons_to_believe?.length ? `â€¢ Reasons to believe: ${productInfo.reasons_to_believe.join(", ")}` : ""}
 ` : "";
 
   const textContent = `
 TEXT TO INCLUDE (exact text, no new copy):
-• Headline: "${headline}"
-${subheadline ? `• Subheadline: "${subheadline}"` : ""}
-${price ? `• Price/Discount: "${price}"` : ""}
-${cta ? `• CTA: "${cta}"` : ""}
-${brand ? `• Brand: "${brand}"` : ""}`;
+â€¢ Headline: "${headline}"
+${subheadline ? `â€¢ Subheadline: "${subheadline}"` : ""}
+${price ? `â€¢ Price/Discount: "${price}"` : ""}
+${cta ? `â€¢ CTA: "${cta}"` : ""}
+${brand ? `â€¢ Brand: "${brand}"` : ""}`;
 
-  // ═══════════════════════════════════════════════════════════════════
-  // 🚫 ANTI-CANVA DIRECTIVE - What makes posters look CHEAP
-  // ═══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ðŸš« ANTI-CANVA DIRECTIVE - What makes posters look CHEAP
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   const antiCanvaRules = `
 ANTI-CANVA RULES (FAIL IF BROKEN):
 - ONE product only
@@ -946,9 +980,9 @@ ANTI-CANVA RULES (FAIL IF BROKEN):
 - Asymmetric, editorial composition
 - Must feel curated, not templated`;
 
-  // ═══════════════════════════════════════════════════════════════════
-  // ✨ PREMIUM REFERENCE - What makes posters look EXPENSIVE
-  // ═══════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // âœ¨ PREMIUM REFERENCE - What makes posters look EXPENSIVE
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   const premiumReference = `
 PREMIUM REFERENCES:
 - Apple: product as hero, negative space, dramatic lighting
@@ -976,7 +1010,7 @@ CAMPAIGN:
 ${campaignGuides[campaign] || campaignGuides.awareness}
 
 LAYOUT (STRICT):
-- Use a 12-column grid, 8-12% margins
+- Use a 12-column grid with full-bleed composition (edge-to-edge; no outer margins or frames)
 - Choose ONE:
   A) Product left (cols 1-6), text right (cols 8-12)
   B) Product right (cols 7-12), text left (cols 1-5)
@@ -986,7 +1020,7 @@ LAYOUT (STRICT):
 
   return [
     {
-      name: "🎯 Hero Product Spotlight",
+      name: "ðŸŽ¯ Hero Product Spotlight",
       prompt: `${basePrompt}
 
 VARIATION: HERO PRODUCT SPOTLIGHT
@@ -998,7 +1032,7 @@ VARIATION: HERO PRODUCT SPOTLIGHT
 Feeling: "Flagship launch moment."`
     },
     {
-      name: "🧼 Minimal Tech Clean",
+      name: "ðŸ§¼ Minimal Tech Clean",
       prompt: `${basePrompt}
 
 VARIATION: MINIMAL TECH CLEAN
@@ -1010,7 +1044,7 @@ VARIATION: MINIMAL TECH CLEAN
 Feeling: "Premium tech, effortless."`
     },
     {
-      name: "📅 Event Hype Poster",
+      name: "ðŸ“… Event Hype Poster",
       prompt: `${basePrompt}
 
 VARIATION: EVENT HYPE POSTER
@@ -1022,7 +1056,7 @@ VARIATION: EVENT HYPE POSTER
 Feeling: "Can't-miss event energy."`
     },
     {
-      name: "✨ Luxury Matte",
+      name: "âœ¨ Luxury Matte",
       prompt: `${basePrompt}
 
 VARIATION: LUXURY MATTE
@@ -1036,14 +1070,14 @@ Feeling: "Quiet luxury, premium tactile."`
   ];
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 🧠 UNDERSTANDING-BASED REDESIGN - Poster-ийн ГОЛ САНААГ ойлгоод хүчирхэгжүүлэх
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ðŸ§  UNDERSTANDING-BASED REDESIGN - Poster-Ð¸Ð¹Ð½ Ð“ÐžÐ› Ð¡ÐÐÐÐÐ“ Ð¾Ð¹Ð»Ð³Ð¾Ð¾Ð´ Ñ…Ò¯Ñ‡Ð¸Ñ€Ñ…ÑÐ³Ð¶Ò¯Ò¯Ð»ÑÑ…
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 function generateUnderstandingPrompts(analysisResult: any): Array<{name: string, prompt: string}> {
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🧠 INTELLIGENT POSTER UNDERSTANDING SYSTEM
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ðŸ§  INTELLIGENT POSTER UNDERSTANDING SYSTEM
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   //
   // Step 1: UNDERSTAND what type of poster this is
   // Step 2: UNDERSTAND what message it wants to communicate
@@ -1051,7 +1085,7 @@ function generateUnderstandingPrompts(analysisResult: any): Array<{name: string,
   //
   // RHYTHM + FLAT DESIGN applies to ALL types
   // But the VISUAL APPROACH changes based on poster type
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   const intentProfile = analysisResult?.intent_profile;
   const preferenceSignals = analysisResult?.user_preference_signals;
@@ -1092,38 +1126,38 @@ function generateUnderstandingPrompts(analysisResult: any): Array<{name: string,
   const soulElements = analysisResult?.emotional_analysis?.soul_elements?.join(", ") || "";
   const analysisText = JSON.stringify(analysisResult || {}).toLowerCase();
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🔍 DETECT POSTER TYPE - What is this poster trying to do?
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ðŸ” DETECT POSTER TYPE - What is this poster trying to do?
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   type PosterCategory = "christmas" | "greeting" | "educational" | "gaming" | "event" | "product" | "kids" | "general";
 
   function detectPosterCategory(): PosterCategory {
-    // ═══════════════════════════════════════════════════════════════════════════
-    // 🎄 CHRISTMAS - Check FIRST! Christmas is NOT generic greeting!
-    // ═══════════════════════════════════════════════════════════════════════════
-    const christmasKeywords = ["christmas", "xmas", "зул сар", "зул сарын", "santa", "snowflake",
-      "цас", "snow", "reindeer", "december", "12-р сар", "12 сар", "holiday season", "new year",
-      "шинэ жил", "stocking", "candy cane", "ornament", "pine", "гацуур", "winter", "өвөл",
-      "jingle", "bells", "mistletoe", "gift", "бэлэг", "festive", "хонх", "merry", "carol",
-      "wreath", "ёлка", "нарс", "red and green", "гэрэл чимэглэл", "december 12", "12-р сарын"];
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // ðŸŽ„ CHRISTMAS - Check FIRST! Christmas is NOT generic greeting!
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    const christmasKeywords = ["christmas", "xmas", "Ð·ÑƒÐ» ÑÐ°Ñ€", "Ð·ÑƒÐ» ÑÐ°Ñ€Ñ‹Ð½", "santa", "snowflake",
+      "Ñ†Ð°Ñ", "snow", "reindeer", "december", "12-Ñ€ ÑÐ°Ñ€", "12 ÑÐ°Ñ€", "holiday season", "new year",
+      "ÑˆÐ¸Ð½Ñ Ð¶Ð¸Ð»", "stocking", "candy cane", "ornament", "pine", "Ð³Ð°Ñ†ÑƒÑƒÑ€", "winter", "Ó©Ð²Ó©Ð»",
+      "jingle", "bells", "mistletoe", "gift", "Ð±ÑÐ»ÑÐ³", "festive", "Ñ…Ð¾Ð½Ñ…", "merry", "carol",
+      "wreath", "Ñ‘Ð»ÐºÐ°", "Ð½Ð°Ñ€Ñ", "red and green", "Ð³ÑÑ€ÑÐ» Ñ‡Ð¸Ð¼ÑÐ³Ð»ÑÐ»", "december 12", "12-Ñ€ ÑÐ°Ñ€Ñ‹Ð½"];
 
     let christmasScore = 0;
     christmasKeywords.forEach(kw => { if (analysisText.includes(kw)) christmasScore++; });
 
     // If ANY Christmas keyword found - it's CHRISTMAS, not generic greeting!
     if (christmasScore >= 1) {
-      console.log(`🎄 CHRISTMAS DETECTED! Score: ${christmasScore}`);
+      console.log(`ðŸŽ„ CHRISTMAS DETECTED! Score: ${christmasScore}`);
       return "christmas";
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // 🧒 KIDS/CHILDREN - Check SECOND! Colorful, playful, 3D cartoon style
-    // ═══════════════════════════════════════════════════════════════════════════
-    const kidsKeywords = ["back to school", "school", "сургууль", "children", "хүүхэд", "kids",
-      "cartoon", "3d", "colorful", "playful", "fun", "adventure", "rocket", "пуужин",
-      "backpack", "цүнх", "pencil", "харандаа", "toy", "тоглоом", "piggy bank", "saving",
-      "learning", "dream", "мөрөөдөл", "cloud", "үүл", "bright", "тод өнгө", "хөгжилтэй"];
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // ðŸ§’ KIDS/CHILDREN - Check SECOND! Colorful, playful, 3D cartoon style
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    const kidsKeywords = ["back to school", "school", "ÑÑƒÑ€Ð³ÑƒÑƒÐ»ÑŒ", "children", "Ñ…Ò¯Ò¯Ñ…ÑÐ´", "kids",
+      "cartoon", "3d", "colorful", "playful", "fun", "adventure", "rocket", "Ð¿ÑƒÑƒÐ¶Ð¸Ð½",
+      "backpack", "Ñ†Ò¯Ð½Ñ…", "pencil", "Ñ…Ð°Ñ€Ð°Ð½Ð´Ð°Ð°", "toy", "Ñ‚Ð¾Ð³Ð»Ð¾Ð¾Ð¼", "piggy bank", "saving",
+      "learning", "dream", "Ð¼Ó©Ñ€Ó©Ó©Ð´Ó©Ð»", "cloud", "Ò¯Ò¯Ð»", "bright", "Ñ‚Ð¾Ð´ Ó©Ð½Ð³Ó©", "Ñ…Ó©Ð³Ð¶Ð¸Ð»Ñ‚ÑÐ¹"];
 
     let kidsScore = 0;
     kidsKeywords.forEach(kw => { if (analysisText.includes(kw)) kidsScore++; });
@@ -1136,32 +1170,32 @@ function generateUnderstandingPrompts(analysisResult: any): Array<{name: string,
     }
 
     if (kidsScore >= 2) {
-      console.log(`🧒 KIDS/CHILDREN DETECTED! Score: ${kidsScore}`);
+      console.log(`ðŸ§’ KIDS/CHILDREN DETECTED! Score: ${kidsScore}`);
       return "kids";
     }
 
     // GREETING: flowers, thank you, birthday, Valentine's, Mother's day, etc (NOT Christmas!)
-    const greetingKeywords = ["thank", "баярлалаа", "flower", "цэцэг", "birthday", "төрсөн өдөр",
-      "баяр", "мэнд хүргэ", "greeting", "congratulat", "love", "хайр", "mother", "father",
-      "valentine", "happy", "wish", "blessing", "anniversary", "ой"];
+    const greetingKeywords = ["thank", "Ð±Ð°ÑÑ€Ð»Ð°Ð»Ð°Ð°", "flower", "Ñ†ÑÑ†ÑÐ³", "birthday", "Ñ‚Ó©Ñ€ÑÓ©Ð½ Ó©Ð´Ó©Ñ€",
+      "Ð±Ð°ÑÑ€", "Ð¼ÑÐ½Ð´ Ñ…Ò¯Ñ€Ð³Ñ", "greeting", "congratulat", "love", "Ñ…Ð°Ð¹Ñ€", "mother", "father",
+      "valentine", "happy", "wish", "blessing", "anniversary", "Ð¾Ð¹"];
 
-    // EDUCATIONAL: design thinking, process, learn, how to, steps, методолог
+    // EDUCATIONAL: design thinking, process, learn, how to, steps, Ð¼ÐµÑ‚Ð¾Ð´Ð¾Ð»Ð¾Ð³
     const educationalKeywords = ["design thinking", "process", "learn", "how to", "steps",
       "method", "tutorial", "guide", "principle", "concept", "understand", "empathy", "empathize",
-      "define", "ideate", "prototype", "test", "skill", "technique", "сургалт", "арга"];
+      "define", "ideate", "prototype", "test", "skill", "technique", "ÑÑƒÑ€Ð³Ð°Ð»Ñ‚", "Ð°Ñ€Ð³Ð°"];
 
-    // GAMING: game, counter-strike, play, gaming, level, score, battle, тоглоом
+    // GAMING: game, counter-strike, play, gaming, level, score, battle, Ñ‚Ð¾Ð³Ð»Ð¾Ð¾Ð¼
     const gamingKeywords = ["game", "gaming", "counter-strike", "counter strike", "play",
-      "level", "score", "battle", "тоглоом", "тоглогч", "winner", "champion", "esport",
-      "fps", "shooter", "战", "遊戲", "gamer"];
+      "level", "score", "battle", "Ñ‚Ð¾Ð³Ð»Ð¾Ð¾Ð¼", "Ñ‚Ð¾Ð³Ð»Ð¾Ð³Ñ‡", "winner", "champion", "esport",
+      "fps", "shooter", "æˆ˜", "éŠæˆ²", "gamer"];
 
-    // EVENT: date, location, speaker, seminar, workshop, conference, арга хэмжээ
-    const eventKeywords = ["event", "огноо", "location", "байршил", "speaker",
-      "seminar", "workshop", "conference", "арга хэмжээ", "зарлал", "announcement", "register"];
+    // EVENT: date, location, speaker, seminar, workshop, conference, Ð°Ñ€Ð³Ð° Ñ…ÑÐ¼Ð¶ÑÑ
+    const eventKeywords = ["event", "Ð¾Ð³Ð½Ð¾Ð¾", "location", "Ð±Ð°Ð¹Ñ€ÑˆÐ¸Ð»", "speaker",
+      "seminar", "workshop", "conference", "Ð°Ñ€Ð³Ð° Ñ…ÑÐ¼Ð¶ÑÑ", "Ð·Ð°Ñ€Ð»Ð°Ð»", "announcement", "register"];
 
-    // PRODUCT: sale, price, discount, product, buy, shop, худалдаа, үнэ
-    const productKeywords = ["sale", "price", "үнэ", "discount", "хямдрал", "%", "product",
-      "бүтээгдэхүүн", "buy", "худалдаа", "shop", "offer", "deal"];
+    // PRODUCT: sale, price, discount, product, buy, shop, Ñ…ÑƒÐ´Ð°Ð»Ð´Ð°Ð°, Ò¯Ð½Ñ
+    const productKeywords = ["sale", "price", "Ò¯Ð½Ñ", "discount", "Ñ…ÑÐ¼Ð´Ñ€Ð°Ð»", "%", "product",
+      "Ð±Ò¯Ñ‚ÑÑÐ³Ð´ÑÑ…Ò¯Ò¯Ð½", "buy", "Ñ…ÑƒÐ´Ð°Ð»Ð´Ð°Ð°", "shop", "offer", "deal"];
 
     let greetingScore = 0, educationalScore = 0, gamingScore = 0, eventScore = 0, productScore = 0;
 
@@ -1171,7 +1205,7 @@ function generateUnderstandingPrompts(analysisResult: any): Array<{name: string,
     eventKeywords.forEach(kw => { if (analysisText.includes(kw)) eventScore++; });
     productKeywords.forEach(kw => { if (analysisText.includes(kw)) productScore++; });
 
-    console.log(`📊 Poster category scores: Greeting=${greetingScore}, Educational=${educationalScore}, Gaming=${gamingScore}, Event=${eventScore}, Product=${productScore}`);
+    console.log(`ðŸ“Š Poster category scores: Greeting=${greetingScore}, Educational=${educationalScore}, Gaming=${gamingScore}, Event=${eventScore}, Product=${productScore}`);
 
     const maxScore = Math.max(greetingScore, educationalScore, gamingScore, eventScore, productScore);
 
@@ -1186,8 +1220,8 @@ function generateUnderstandingPrompts(analysisResult: any): Array<{name: string,
   }
 
   const posterCategory = detectPosterCategory();
-  console.log(`🎯 DETECTED POSTER CATEGORY: ${posterCategory.toUpperCase()}`);
-  console.log(`💭 Poster Vision: ${theirVision.slice(0, 100)}...`);
+  console.log(`ðŸŽ¯ DETECTED POSTER CATEGORY: ${posterCategory.toUpperCase()}`);
+  console.log(`ðŸ’­ Poster Vision: ${theirVision.slice(0, 100)}...`);
 
   // INTENT-FIRST REDESIGN (new): Use intent + preference signals if available
   if (intentProfile || preferenceSignals || productInfo) {
@@ -1274,26 +1308,26 @@ The viewer should sense quality and trust at first glance.`
     ];
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🎨 CATEGORY-SPECIFIC PROMPTS - Tailored to poster's PURPOSE
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ðŸŽ¨ CATEGORY-SPECIFIC PROMPTS - Tailored to poster's PURPOSE
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   // Common style rules for ALL categories
   const RHYTHM_FLAT_RULES = `
-🎵 RHYTHM RULES (ALL POSTERS):
-• Typography: tiny intro → MASSIVE KEYWORD (3x bigger!) → small support
-• Visual: simple shapes, ONE element pops with accent color
-• Maximum 4-5 elements total - less is more
+ðŸŽµ RHYTHM RULES (ALL POSTERS):
+â€¢ Typography: tiny intro â†’ MASSIVE KEYWORD (3x bigger!) â†’ small support
+â€¢ Visual: simple shapes, ONE element pops with accent color
+â€¢ Maximum 4-5 elements total - less is more
 
-🎨 FLAT DESIGN RULES (ALL POSTERS):
-• NO realistic/complex illustrations - only GEOMETRIC shapes
-• Simple icons, lines, circles, arrows
-• ONE accent color only (orange, red, or themed color)
-• Solid clean background (white, cream, or themed)
-• Clean, minimal, breathable
+ðŸŽ¨ FLAT DESIGN RULES (ALL POSTERS):
+â€¢ NO realistic/complex illustrations - only GEOMETRIC shapes
+â€¢ Simple icons, lines, circles, arrows
+â€¢ ONE accent color only (orange, red, or themed color)
+â€¢ Solid clean background (white, cream, or themed)
+â€¢ Clean, minimal, breathable
 
 LAYOUT SYSTEM (ALL POSTERS):
-- Use 8-12% outer margins (safe area)
+- Use full-bleed layout: background and composition must touch all canvas edges (no safe-area margins)
 - Use a grid; align edges and baselines
 - Type scale: Hero 100%, Subhead 45-60%, Support 20-30%
 - 2 font families max, 2 weights max
@@ -1301,19 +1335,19 @@ LAYOUT SYSTEM (ALL POSTERS):
 - 50-70% negative space`;
 
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🎮 GAMING CATEGORY - Dynamic, bold, exciting
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ðŸŽ® GAMING CATEGORY - Dynamic, bold, exciting
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   if (posterCategory === "gaming") {
-    console.log("🎮 Generating GAMING-specific prompts...");
+    console.log("ðŸŽ® Generating GAMING-specific prompts...");
     return [
       {
-        name: "🎮 Gaming Bold",
-        prompt: `🎨 GAMING POSTER REDESIGN: 🎮 BOLD GAMING STYLE
+        name: "ðŸŽ® Gaming Bold",
+        prompt: `ðŸŽ¨ GAMING POSTER REDESIGN: ðŸŽ® BOLD GAMING STYLE
 
-═══════════════════════════════════════════════════════════════════
-🎮 THIS IS A GAMING POSTER - Make it EXCITING and BOLD!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽ® THIS IS A GAMING POSTER - Make it EXCITING and BOLD!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER MESSAGE:
 ${theirVision}
@@ -1323,188 +1357,188 @@ ${coreFeeling}
 
 ${RHYTHM_FLAT_RULES}
 
-═══════════════════════════════════════════════════════════════════
-🎮 GAMING STYLE - Bold, Dynamic, Exciting
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽ® GAMING STYLE - Bold, Dynamic, Exciting
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 GAMING VISUAL ELEMENTS (FLAT STYLE):
-• Crosshairs/targets 🎯 (simple circles with cross)
-• Controllers (simple flat icon)
-• Helmets (simple geometric)
-• Bullets/ammo (simple shapes)
-• Stars, badges (flat geometric)
+â€¢ Crosshairs/targets ðŸŽ¯ (simple circles with cross)
+â€¢ Controllers (simple flat icon)
+â€¢ Helmets (simple geometric)
+â€¢ Bullets/ammo (simple shapes)
+â€¢ Stars, badges (flat geometric)
 
 COLOR SCHEME:
-• Dark background (black, dark green, military)
-• Accent: orange, gold, or neon green
-• High contrast for excitement
+â€¢ Dark background (black, dark green, military)
+â€¢ Accent: orange, gold, or neon green
+â€¢ High contrast for excitement
 
 TYPOGRAPHY:
-• MASSIVE game/title name
-• Bold, impactful fonts
-• Military or tech style
+â€¢ MASSIVE game/title name
+â€¢ Bold, impactful fonts
+â€¢ Military or tech style
 
 VISUAL APPROACH:
-┌─────────────────────────────────────────────────┐
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓  small intro                            ▓▓▓│
-│▓▓▓  ████████████████████████████████       ▓▓▓│
-│▓▓▓  ██  GAME TITLE (MASSIVE)  ██           ▓▓▓│
-│▓▓▓  ████████████████████████████████       ▓▓▓│
-│▓▓▓  small tagline                          ▓▓▓│
-│▓▓▓                                         ▓▓▓│
-│▓▓▓     🎯  🎮  ⭐  (flat gaming icons)      ▓▓▓│
-│▓▓▓                                         ▓▓▓│
-│▓▓▓  GREETING/MESSAGE (if any)              ▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“  small intro                            â–“â–“â–“â”‚
+â”‚â–“â–“â–“  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ       â–“â–“â–“â”‚
+â”‚â–“â–“â–“  â–ˆâ–ˆ  GAME TITLE (MASSIVE)  â–ˆâ–ˆ           â–“â–“â–“â”‚
+â”‚â–“â–“â–“  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ       â–“â–“â–“â”‚
+â”‚â–“â–“â–“  small tagline                          â–“â–“â–“â”‚
+â”‚â–“â–“â–“                                         â–“â–“â–“â”‚
+â”‚â–“â–“â–“     ðŸŽ¯  ðŸŽ®  â­  (flat gaming icons)      â–“â–“â–“â”‚
+â”‚â–“â–“â–“                                         â–“â–“â–“â”‚
+â”‚â–“â–“â–“  GREETING/MESSAGE (if any)              â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🎯 GOAL: Exciting, bold, gaming aesthetic with RHYTHM!`
+ðŸŽ¯ GOAL: Exciting, bold, gaming aesthetic with RHYTHM!`
       },
       {
-        name: "🎯 Target Stand Out",
-        prompt: `🎨 GAMING POSTER REDESIGN: 🎯 TARGET STAND OUT
+        name: "ðŸŽ¯ Target Stand Out",
+        prompt: `ðŸŽ¨ GAMING POSTER REDESIGN: ðŸŽ¯ TARGET STAND OUT
 
-═══════════════════════════════════════════════════════════════════
-🎮 THIS IS A GAMING POSTER - Use TARGET/CROSSHAIR visual!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽ® THIS IS A GAMING POSTER - Use TARGET/CROSSHAIR visual!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER MESSAGE:
 ${theirVision}
 
 ${RHYTHM_FLAT_RULES}
 
-═══════════════════════════════════════════════════════════════════
-🎯 TARGET STAND OUT - Crosshairs with ONE highlighted
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽ¯ TARGET STAND OUT - Crosshairs with ONE highlighted
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Row of crosshair/target icons, ONE stands out.
 Like the matchstick poster but with gaming targets!
 
 VISUAL:
-🎯🎯🎯🎯🎯🎯🎯 ← all gray/dark
-              🟠 ← ONE is accent color!
+ðŸŽ¯ðŸŽ¯ðŸŽ¯ðŸŽ¯ðŸŽ¯ðŸŽ¯ðŸŽ¯ â† all gray/dark
+              ðŸŸ  â† ONE is accent color!
 
 STYLE:
-• Light or dark background
-• Simple flat crosshair icons in a row
-• All same color EXCEPT ONE
-• MASSIVE title above
-• Message below
+â€¢ Light or dark background
+â€¢ Simple flat crosshair icons in a row
+â€¢ All same color EXCEPT ONE
+â€¢ MASSIVE title above
+â€¢ Message below
 
 VISUAL APPROACH:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│  small intro                                    │
-│  ████████████████████████████████               │
-│  ██    GAME TITLE (MASSIVE)    ██               │
-│  ████████████████████████████████               │
-│  tagline text                                   │
-│                                                 │
-│     🎯 🎯 🎯 🎯 🎯 🎯 🎯  ← ONE orange!           │
-│                                                 │
-│  GREETING MESSAGE                               │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚  small intro                                    â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚  â–ˆâ–ˆ    GAME TITLE (MASSIVE)    â–ˆâ–ˆ               â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚  tagline text                                   â”‚
+â”‚                                                 â”‚
+â”‚     ðŸŽ¯ ðŸŽ¯ ðŸŽ¯ ðŸŽ¯ ðŸŽ¯ ðŸŽ¯ ðŸŽ¯  â† ONE orange!           â”‚
+â”‚                                                 â”‚
+â”‚  GREETING MESSAGE                               â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🎯 GOAL: Gaming targets with ONE standing out!`
+ðŸŽ¯ GOAL: Gaming targets with ONE standing out!`
       },
       {
-        name: "🏆 Victory Flow",
-        prompt: `🎨 GAMING POSTER REDESIGN: 🏆 VICTORY FLOW
+        name: "ðŸ† Victory Flow",
+        prompt: `ðŸŽ¨ GAMING POSTER REDESIGN: ðŸ† VICTORY FLOW
 
-═══════════════════════════════════════════════════════════════════
-🎮 THIS IS A GAMING POSTER - Show the path to VICTORY!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽ® THIS IS A GAMING POSTER - Show the path to VICTORY!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER MESSAGE:
 ${theirVision}
 
 ${RHYTHM_FLAT_RULES}
 
-═══════════════════════════════════════════════════════════════════
-🏆 VICTORY FLOW - Journey to winning
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ† VICTORY FLOW - Journey to winning
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Visual flow showing gaming journey.
-Start → Play → Win progression.
+Start â†’ Play â†’ Win progression.
 
 GAMING FLOW IDEAS:
-• Controller → Target → Trophy
-• Helmet → Weapon → Victory
-• Practice → Battle → Champion
-• ○○○○● progress circles
+â€¢ Controller â†’ Target â†’ Trophy
+â€¢ Helmet â†’ Weapon â†’ Victory
+â€¢ Practice â†’ Battle â†’ Champion
+â€¢ â—‹â—‹â—‹â—‹â— progress circles
 
 VISUAL APPROACH:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│  ████████████████████████████████               │
-│  ██    GAME TITLE (MASSIVE)    ██               │
-│  ████████████████████████████████               │
-│                                                 │
-│     🎮 ──→ 🎯 ──→ 🏆                            │
-│    (start)  (play)  (win)                       │
-│                                                 │
-│  ★ GREETING MESSAGE ★                           │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚  â–ˆâ–ˆ    GAME TITLE (MASSIVE)    â–ˆâ–ˆ               â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚                                                 â”‚
+â”‚     ðŸŽ® â”€â”€â†’ ðŸŽ¯ â”€â”€â†’ ðŸ†                            â”‚
+â”‚    (start)  (play)  (win)                       â”‚
+â”‚                                                 â”‚
+â”‚  â˜… GREETING MESSAGE â˜…                           â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🎯 GOAL: Gaming journey flow to victory!`
+ðŸŽ¯ GOAL: Gaming journey flow to victory!`
       },
       {
-        name: "⭐ Military Honor",
-        prompt: `🎨 GAMING POSTER REDESIGN: ⭐ MILITARY HONOR
+        name: "â­ Military Honor",
+        prompt: `ðŸŽ¨ GAMING POSTER REDESIGN: â­ MILITARY HONOR
 
-═══════════════════════════════════════════════════════════════════
-🎮 THIS IS A GAMING/MILITARY POSTER - Honor and respect style!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽ® THIS IS A GAMING/MILITARY POSTER - Honor and respect style!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER MESSAGE:
 ${theirVision}
 
 ${RHYTHM_FLAT_RULES}
 
-═══════════════════════════════════════════════════════════════════
-⭐ MILITARY HONOR - Respectful, strong, proud
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+â­ MILITARY HONOR - Respectful, strong, proud
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Military honor aesthetic with stars and badges.
 Strong, proud, respectful design.
 
 MILITARY ELEMENTS (FLAT):
-• Stars ⭐ (simple 5-point)
-• Badges (simple geometric shapes)
-• Stripes, bars
-• Laurel wreaths (simple lines)
+â€¢ Stars â­ (simple 5-point)
+â€¢ Badges (simple geometric shapes)
+â€¢ Stripes, bars
+â€¢ Laurel wreaths (simple lines)
 
 COLOR SCHEME:
-• Green (military) or dark background
-• Gold/orange accents for honor
-• White text for contrast
+â€¢ Green (military) or dark background
+â€¢ Gold/orange accents for honor
+â€¢ White text for contrast
 
 VISUAL APPROACH:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│           ⭐⭐⭐                                 │
-│                                                 │
-│  ████████████████████████████████               │
-│  ██    TITLE (MASSIVE)    ██                    │
-│  ████████████████████████████████               │
-│                                                 │
-│        ═══════════════════                      │
-│        ★ HONOR MESSAGE ★                        │
-│        ═══════════════════                      │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚           â­â­â­                                 â”‚
+â”‚                                                 â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚  â–ˆâ–ˆ    TITLE (MASSIVE)    â–ˆâ–ˆ                    â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚                                                 â”‚
+â”‚        â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•                      â”‚
+â”‚        â˜… HONOR MESSAGE â˜…                        â”‚
+â”‚        â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•                      â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🎯 GOAL: Military honor with stars and respect!`
+ðŸŽ¯ GOAL: Military honor with stars and respect!`
       }
     ];
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🎄 CHRISTMAS - ELEVATE the original! Keep core element, improve everything!
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ðŸŽ„ CHRISTMAS - ELEVATE the original! Keep core element, improve everything!
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     if (posterCategory === "christmas") {
     console.log("CHRISTMAS ELEVATION - Keep core element, improve everything!");
 
@@ -1691,16 +1725,16 @@ GOAL: Dynamic, playful kids poster with bold 3D energy.`
     const searchText = (allText + " " + coreMessage).toLowerCase();
 
     // Christmas greeting patterns - return appropriate SHORT message
-    if (searchText.includes("зул сар") || searchText.includes("christmas") || searchText.includes("xmas")) {
+    if (searchText.includes("Ð·ÑƒÐ» ÑÐ°Ñ€") || searchText.includes("christmas") || searchText.includes("xmas")) {
       return "MERRY CHRISTMAS";
     }
-    if (searchText.includes("шинэ жил") || searchText.includes("new year")) {
+    if (searchText.includes("ÑˆÐ¸Ð½Ñ Ð¶Ð¸Ð»") || searchText.includes("new year")) {
       return "HAPPY NEW YEAR";
     }
-    if (searchText.includes("баярлалаа") || searchText.includes("thank")) {
+    if (searchText.includes("Ð±Ð°ÑÑ€Ð»Ð°Ð»Ð°Ð°") || searchText.includes("thank")) {
       return "THANK YOU";
     }
-    if (searchText.includes("12-р сар") || searchText.includes("december") || searchText.includes("12 сар")) {
+    if (searchText.includes("12-Ñ€ ÑÐ°Ñ€") || searchText.includes("december") || searchText.includes("12 ÑÐ°Ñ€")) {
       return "HAPPY HOLIDAYS";
     }
     if (searchText.includes("happy holiday")) {
@@ -1717,19 +1751,19 @@ GOAL: Dynamic, playful kids poster with bold 3D energy.`
     return "SEASON'S GREETINGS";
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🌸 GREETING CATEGORY - Beautiful, emotional, elegant (Valentine, Birthday, etc - NOT Christmas!)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ðŸŒ¸ GREETING CATEGORY - Beautiful, emotional, elegant (Valentine, Birthday, etc - NOT Christmas!)
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   if (posterCategory === "greeting") {
-    console.log("🌸 Generating GREETING-specific prompts...");
+    console.log("ðŸŒ¸ Generating GREETING-specific prompts...");
     return [
       {
-        name: "🌸 Elegant Bloom",
-        prompt: `🎨 GREETING POSTER REDESIGN: 🌸 ELEGANT BLOOM
+        name: "ðŸŒ¸ Elegant Bloom",
+        prompt: `ðŸŽ¨ GREETING POSTER REDESIGN: ðŸŒ¸ ELEGANT BLOOM
 
-═══════════════════════════════════════════════════════════════════
-🌸 THIS IS A GREETING POSTER - Make it BEAUTIFUL and EMOTIONAL!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŒ¸ THIS IS A GREETING POSTER - Make it BEAUTIFUL and EMOTIONAL!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER MESSAGE:
 ${theirVision}
@@ -1739,184 +1773,184 @@ ${coreFeeling}
 
 ${RHYTHM_FLAT_RULES}
 
-═══════════════════════════════════════════════════════════════════
-🌸 ELEGANT BLOOM - Beautiful, soft, emotional
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŒ¸ ELEGANT BLOOM - Beautiful, soft, emotional
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 GREETING VISUAL ELEMENTS (FLAT STYLE):
-• Simple flower silhouettes (not realistic!)
-• Leaves, stems (simple lines)
-• Hearts (geometric)
-• Soft shapes, curves
+â€¢ Simple flower silhouettes (not realistic!)
+â€¢ Leaves, stems (simple lines)
+â€¢ Hearts (geometric)
+â€¢ Soft shapes, curves
 
 COLOR SCHEME:
-• Soft background (cream, blush, light)
-• Accent: soft pink, coral, or gold
-• Elegant, warm feeling
+â€¢ Soft background (cream, blush, light)
+â€¢ Accent: soft pink, coral, or gold
+â€¢ Elegant, warm feeling
 
 TYPOGRAPHY:
-• MASSIVE greeting word (THANK YOU, HAPPY, etc.)
-• Elegant serif or script style
-• Warm, inviting
+â€¢ MASSIVE greeting word (THANK YOU, HAPPY, etc.)
+â€¢ Elegant serif or script style
+â€¢ Warm, inviting
 
 VISUAL APPROACH:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│  small "with love" or intro                     │
-│  ████████████████████████████████               │
-│  ██  THANK YOU (MASSIVE)  ██                    │
-│  ████████████████████████████████               │
-│  for being amazing                              │
-│                                                 │
-│        🌸 (simple flat flower)                  │
-│                                                 │
-│  from [name]                                    │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚  small "with love" or intro                     â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚  â–ˆâ–ˆ  THANK YOU (MASSIVE)  â–ˆâ–ˆ                    â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚  for being amazing                              â”‚
+â”‚                                                 â”‚
+â”‚        ðŸŒ¸ (simple flat flower)                  â”‚
+â”‚                                                 â”‚
+â”‚  from [name]                                    â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🎯 GOAL: Beautiful, emotional, elegant greeting!`
+ðŸŽ¯ GOAL: Beautiful, emotional, elegant greeting!`
       },
       {
-        name: "💝 Heart Stand Out",
-        prompt: `🎨 GREETING POSTER REDESIGN: 💝 HEART STAND OUT
+        name: "ðŸ’ Heart Stand Out",
+        prompt: `ðŸŽ¨ GREETING POSTER REDESIGN: ðŸ’ HEART STAND OUT
 
-═══════════════════════════════════════════════════════════════════
-🌸 THIS IS A GREETING POSTER - Hearts with ONE standing out!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŒ¸ THIS IS A GREETING POSTER - Hearts with ONE standing out!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER MESSAGE:
 ${theirVision}
 
 ${RHYTHM_FLAT_RULES}
 
-═══════════════════════════════════════════════════════════════════
-💝 HEART STAND OUT - Row of hearts, ONE pops
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ’ HEART STAND OUT - Row of hearts, ONE pops
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Simple hearts in a row, ONE is accent color.
 Like matchstick poster but with hearts!
 
 VISUAL:
-♡♡♡♡♡♡♡ ← all gray/light
-        ♥ ← ONE is colored!
+â™¡â™¡â™¡â™¡â™¡â™¡â™¡ â† all gray/light
+        â™¥ â† ONE is colored!
 
 VISUAL APPROACH:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│  small intro                                    │
-│  ████████████████████████████████               │
-│  ██  GREETING WORD (MASSIVE)  ██                │
-│  ████████████████████████████████               │
-│  subtitle                                       │
-│                                                 │
-│     ♡ ♡ ♡ ♡ ♡ ♡ ♥  ← ONE colored!               │
-│                                                 │
-│  message or signature                           │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚  small intro                                    â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚  â–ˆâ–ˆ  GREETING WORD (MASSIVE)  â–ˆâ–ˆ                â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ               â”‚
+â”‚  subtitle                                       â”‚
+â”‚                                                 â”‚
+â”‚     â™¡ â™¡ â™¡ â™¡ â™¡ â™¡ â™¥  â† ONE colored!               â”‚
+â”‚                                                 â”‚
+â”‚  message or signature                           â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🎯 GOAL: Hearts with ONE standing out - emotional rhythm!`
+ðŸŽ¯ GOAL: Hearts with ONE standing out - emotional rhythm!`
       },
       {
-        name: "✨ Minimal Precious",
-        prompt: `🎨 GREETING POSTER REDESIGN: ✨ MINIMAL PRECIOUS
+        name: "âœ¨ Minimal Precious",
+        prompt: `ðŸŽ¨ GREETING POSTER REDESIGN: âœ¨ MINIMAL PRECIOUS
 
-═══════════════════════════════════════════════════════════════════
-🌸 THIS IS A GREETING POSTER - Minimal but precious!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŒ¸ THIS IS A GREETING POSTER - Minimal but precious!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER MESSAGE:
 ${theirVision}
 
 ${RHYTHM_FLAT_RULES}
 
-═══════════════════════════════════════════════════════════════════
-✨ MINIMAL PRECIOUS - Simple, elegant, meaningful
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âœ¨ MINIMAL PRECIOUS - Simple, elegant, meaningful
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Maximum white space, ONE precious element.
 Like a museum piece - refined and elegant.
 
 VISUAL:
-• 80% white/cream space
-• ONE simple flower or heart
-• Typography as art
+â€¢ 80% white/cream space
+â€¢ ONE simple flower or heart
+â€¢ Typography as art
 
 VISUAL APPROACH:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│                                                 │
-│                                                 │
-│           🌸 (one simple element)               │
-│                                                 │
-│        GREETING WORD                            │
-│        small subtitle                           │
-│                                                 │
-│                                                 │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚           ðŸŒ¸ (one simple element)               â”‚
+â”‚                                                 â”‚
+â”‚        GREETING WORD                            â”‚
+â”‚        small subtitle                           â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🎯 GOAL: Minimal, precious, museum-quality greeting!`
+ðŸŽ¯ GOAL: Minimal, precious, museum-quality greeting!`
       },
       {
-        name: "🎀 Soft Gradient",
-        prompt: `🎨 GREETING POSTER REDESIGN: 🎀 SOFT GRADIENT
+        name: "ðŸŽ€ Soft Gradient",
+        prompt: `ðŸŽ¨ GREETING POSTER REDESIGN: ðŸŽ€ SOFT GRADIENT
 
-═══════════════════════════════════════════════════════════════════
-🌸 THIS IS A GREETING POSTER - Soft, warm, inviting!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŒ¸ THIS IS A GREETING POSTER - Soft, warm, inviting!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER MESSAGE:
 ${theirVision}
 
 ${RHYTHM_FLAT_RULES}
 
-═══════════════════════════════════════════════════════════════════
-🎀 SOFT GRADIENT - Warm colors flowing
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽ€ SOFT GRADIENT - Warm colors flowing
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Soft color gradient background with clean typography.
 Warm, inviting, gentle feeling.
 
 COLORS:
-• Soft gradient: cream to blush, or peach to coral
-• White or dark text for contrast
-• Gentle, warm feeling
+â€¢ Soft gradient: cream to blush, or peach to coral
+â€¢ White or dark text for contrast
+â€¢ Gentle, warm feeling
 
 VISUAL APPROACH:
-┌─────────────────────────────────────────────────┐
-│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
-│░░░  (soft gradient background)             ░░░│
-│░░░                                         ░░░│
-│░░░  ████████████████████████████████       ░░░│
-│░░░  ██  GREETING (MASSIVE)  ██             ░░░│
-│░░░  ████████████████████████████████       ░░░│
-│░░░                                         ░░░│
-│░░░        simple element                   ░░░│
-│░░░                                         ░░░│
-│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘  (soft gradient background)             â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘                                         â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ       â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘  â–ˆâ–ˆ  GREETING (MASSIVE)  â–ˆâ–ˆ             â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ       â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘                                         â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘        simple element                   â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘                                         â–‘â–‘â–‘â”‚
+â”‚â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â–‘â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🎯 GOAL: Soft, warm gradient with clean greeting!`
+ðŸŽ¯ GOAL: Soft, warm gradient with clean greeting!`
       }
     ];
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 📚 EDUCATIONAL CATEGORY - Clear, informative, visual metaphors
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ðŸ“š EDUCATIONAL CATEGORY - Clear, informative, visual metaphors
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // (Default - use existing prompts for educational/general)
 
-  console.log("📚 Generating EDUCATIONAL/GENERAL prompts...");
+  console.log("ðŸ“š Generating EDUCATIONAL/GENERAL prompts...");
   return [
     {
-      name: "🔄 Transformation",
-      prompt: `🎨 STEVE REDESIGN: 🔄 TRANSFORMATION (RHYTHM + FLAT)
+      name: "ðŸ”„ Transformation",
+      prompt: `ðŸŽ¨ STEVE REDESIGN: ðŸ”„ TRANSFORMATION (RHYTHM + FLAT)
 
-═══════════════════════════════════════════════════════════════════
-🎵 RHYTHM: Elements CHANGE to move the viewer's heart
-🎨 FLAT DESIGN: Simple shapes, ONE accent color, meaningful visual
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽµ RHYTHM: Elements CHANGE to move the viewer's heart
+ðŸŽ¨ FLAT DESIGN: Simple shapes, ONE accent color, meaningful visual
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER CORE MESSAGE:
 ${theirVision}
@@ -1924,66 +1958,66 @@ ${theirVision}
 CORE FEELING:
 ${coreFeeling}
 
-═══════════════════════════════════════════════════════════════════
-🔄 TRANSFORMATION - BEFORE → AFTER with RHYTHM
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ”„ TRANSFORMATION - BEFORE â†’ AFTER with RHYTHM
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Show change/transformation with RHYTHM and FLAT DESIGN.
 
-🎵 RHYTHM RULES (STRONG CONTRAST!):
-• Typography: tiny intro → MASSIVE KEYWORD (3x bigger!) → small support
-• The KEYWORD must be SO BIG it dominates the poster
-• Visual: simple shapes, ONE pops with accent color
-• Less is more - maximum 4-5 elements total
+ðŸŽµ RHYTHM RULES (STRONG CONTRAST!):
+â€¢ Typography: tiny intro â†’ MASSIVE KEYWORD (3x bigger!) â†’ small support
+â€¢ The KEYWORD must be SO BIG it dominates the poster
+â€¢ Visual: simple shapes, ONE pops with accent color
+â€¢ Less is more - maximum 4-5 elements total
 
-🎨 FLAT DESIGN RULES (ULTRA SIMPLE!):
-• NO realistic illustrations - only GEOMETRIC shapes
-• Simple circles, lines, arrows (no complex drawings)
-• ONE accent color only (orange preferred)
-• Solid white/cream background
-• Clean, minimal, breathable
+ðŸŽ¨ FLAT DESIGN RULES (ULTRA SIMPLE!):
+â€¢ NO realistic illustrations - only GEOMETRIC shapes
+â€¢ Simple circles, lines, arrows (no complex drawings)
+â€¢ ONE accent color only (orange preferred)
+â€¢ Solid white/cream background
+â€¢ Clean, minimal, breathable
 
 VISUAL STRUCTURE:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│  small intro text                               │
-│  ████████████████████████████                   │
-│  ██   HUGE KEYWORD   ██                         │
-│  ████████████████████████████                   │
-│  medium supporting text                         │
-│                                                 │
-│     ○○○○○○○○●  ← one stands out                 │
-│     [BEFORE] → [AFTER]                          │
-│     (flat, simple illustration)                 │
-│                                                 │
-│  • detail  • detail  • detail                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚  small intro text                               â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ                   â”‚
+â”‚  â–ˆâ–ˆ   HUGE KEYWORD   â–ˆâ–ˆ                         â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ                   â”‚
+â”‚  medium supporting text                         â”‚
+â”‚                                                 â”‚
+â”‚     â—‹â—‹â—‹â—‹â—‹â—‹â—‹â—‹â—  â† one stands out                 â”‚
+â”‚     [BEFORE] â†’ [AFTER]                          â”‚
+â”‚     (flat, simple illustration)                 â”‚
+â”‚                                                 â”‚
+â”‚  â€¢ detail  â€¢ detail  â€¢ detail                   â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 TRANSFORMATION VISUALS (FLAT STYLE):
-• Tangled line → Clean line (simple strokes)
-• Gray circles → One ORANGE circle stands out
-• Scattered dots → Connected dots
-• Question mark → Exclamation mark
-• Closed lock → Open lock (simple icons)
+â€¢ Tangled line â†’ Clean line (simple strokes)
+â€¢ Gray circles â†’ One ORANGE circle stands out
+â€¢ Scattered dots â†’ Connected dots
+â€¢ Question mark â†’ Exclamation mark
+â€¢ Closed lock â†’ Open lock (simple icons)
 
 STYLE:
-• Dark or light solid background
-• White/black text + ONE accent (orange/red preferred)
-• Simple flat icons and illustrations
-• Dashed lines or arrows for FLOW/MOVEMENT
-• Clean sans-serif typography with SIZE RHYTHM
+â€¢ Dark or light solid background
+â€¢ White/black text + ONE accent (orange/red preferred)
+â€¢ Simple flat icons and illustrations
+â€¢ Dashed lines or arrows for FLOW/MOVEMENT
+â€¢ Clean sans-serif typography with SIZE RHYTHM
 
-🎯 GOAL: RHYTHM moves the eye, FLAT keeps it clean!`
+ðŸŽ¯ GOAL: RHYTHM moves the eye, FLAT keeps it clean!`
     },
     {
-      name: "📐 Editorial Grid",
-      prompt: `🎨 STEVE REDESIGN: 📐 EDITORIAL GRID (RHYTHM + FLAT)
+      name: "ðŸ“ Editorial Grid",
+      prompt: `ðŸŽ¨ STEVE REDESIGN: ðŸ“ EDITORIAL GRID (RHYTHM + FLAT)
 
-═══════════════════════════════════════════════════════════════════
-🎵 RHYTHM: Typography size changes create visual music
-🎨 FLAT DESIGN: Grid structure, clean shapes, one accent color
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽµ RHYTHM: Typography size changes create visual music
+ðŸŽ¨ FLAT DESIGN: Grid structure, clean shapes, one accent color
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER CORE MESSAGE:
 ${theirVision}
@@ -1991,64 +2025,64 @@ ${theirVision}
 CORE FEELING:
 ${coreFeeling}
 
-═══════════════════════════════════════════════════════════════════
-📐 EDITORIAL GRID - Swiss Typography with RHYTHM
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ“ EDITORIAL GRID - Swiss Typography with RHYTHM
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Magazine cover style with typography RHYTHM.
 
-🎵 TYPOGRAPHY RHYTHM (EXTREME CONTRAST!):
-• Line 1: tiny text (10% size)
-• Line 2: MASSIVE KEYWORD (60% of poster width!) - in ACCENT COLOR
-• Line 3: small supporting text
-• The keyword must DOMINATE - 3-4x bigger than other text!
+ðŸŽµ TYPOGRAPHY RHYTHM (EXTREME CONTRAST!):
+â€¢ Line 1: tiny text (10% size)
+â€¢ Line 2: MASSIVE KEYWORD (60% of poster width!) - in ACCENT COLOR
+â€¢ Line 3: small supporting text
+â€¢ The keyword must DOMINATE - 3-4x bigger than other text!
 
-🎨 FLAT DESIGN RULES (ULTRA MINIMAL!):
-• Subtle grid lines (very light gray)
-• Cream or white background
-• Black text + ONE accent color (orange/red) for KEYWORD ONLY
-• Maximum 1 simple visual element (scribble, simple icon)
-• NO complex illustrations - only geometric shapes
+ðŸŽ¨ FLAT DESIGN RULES (ULTRA MINIMAL!):
+â€¢ Subtle grid lines (very light gray)
+â€¢ Cream or white background
+â€¢ Black text + ONE accent color (orange/red) for KEYWORD ONLY
+â€¢ Maximum 1 simple visual element (scribble, simple icon)
+â€¢ NO complex illustrations - only geometric shapes
 
 VISUAL STRUCTURE:
-┌─────────────────────────────────────────────────┐
-│ ┃     ┃     ┃     ┃     ┃     ┃     ┃     ┃    │
-│ ┃ We know what it takes to make your     ┃    │
-│ ┃ ██████████████████████████████████     ┃    │
-│ ┃ ██    KEYWORD (accent color)    ██     ┃    │
-│ ┃ ██████████████████████████████████     ┃    │
-│ ┃ stand out from the rest.               ┃    │
-│ ┃     ┃     ┃     ┃     ┃     ┃     ┃     ┃    │
-│ ┃     ┃     ┃     ┃     ○○○○●  (flat visual)   │
-│ ┃     ┃     ┃     ┃     ┃     ┃     ┃     ┃    │
-│ ┃─────┃─────┃─────┃─────┃─────┃─────┃─────┃    │
-│ ┃ • point  • point  • point  • point     ┃    │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ    â”‚
+â”‚ â”ƒ We know what it takes to make your     â”ƒ    â”‚
+â”‚ â”ƒ â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ     â”ƒ    â”‚
+â”‚ â”ƒ â–ˆâ–ˆ    KEYWORD (accent color)    â–ˆâ–ˆ     â”ƒ    â”‚
+â”‚ â”ƒ â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ     â”ƒ    â”‚
+â”‚ â”ƒ stand out from the rest.               â”ƒ    â”‚
+â”‚ â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ    â”‚
+â”‚ â”ƒ     â”ƒ     â”ƒ     â”ƒ     â—‹â—‹â—‹â—‹â—  (flat visual)   â”‚
+â”‚ â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ     â”ƒ    â”‚
+â”‚ â”ƒâ”€â”€â”€â”€â”€â”ƒâ”€â”€â”€â”€â”€â”ƒâ”€â”€â”€â”€â”€â”ƒâ”€â”€â”€â”€â”€â”ƒâ”€â”€â”€â”€â”€â”ƒâ”€â”€â”€â”€â”€â”ƒâ”€â”€â”€â”€â”€â”ƒ    â”‚
+â”‚ â”ƒ â€¢ point  â€¢ point  â€¢ point  â€¢ point     â”ƒ    â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 FLAT VISUAL ELEMENTS:
-• Simple scribble/tangle (one accent color)
-• Flat icons in a row (one highlighted)
-• Geometric shapes (circles, squares)
-• Simple line illustration
-• Dashed arrow showing direction/flow
+â€¢ Simple scribble/tangle (one accent color)
+â€¢ Flat icons in a row (one highlighted)
+â€¢ Geometric shapes (circles, squares)
+â€¢ Simple line illustration
+â€¢ Dashed arrow showing direction/flow
 
 STYLE:
-• Light background with visible grid
-• Black text, ONE accent color (red/orange)
-• LEFT-ALIGNED text (editorial feel)
-• Simple flat visual element
-• Footer with bullet points
+â€¢ Light background with visible grid
+â€¢ Black text, ONE accent color (red/orange)
+â€¢ LEFT-ALIGNED text (editorial feel)
+â€¢ Simple flat visual element
+â€¢ Footer with bullet points
 
-🎯 GOAL: Typography rhythm + Grid structure + Flat visual!`
+ðŸŽ¯ GOAL: Typography rhythm + Grid structure + Flat visual!`
     },
     {
-      name: "💡 Stand Out",
-      prompt: `🎨 STEVE REDESIGN: 💡 STAND OUT (RHYTHM + FLAT)
+      name: "ðŸ’¡ Stand Out",
+      prompt: `ðŸŽ¨ STEVE REDESIGN: ðŸ’¡ STAND OUT (RHYTHM + FLAT)
 
-═══════════════════════════════════════════════════════════════════
-🎵 RHYTHM: Repetition with ONE element standing out
-🎨 FLAT DESIGN: Simple shapes, ONE accent pops
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽµ RHYTHM: Repetition with ONE element standing out
+ðŸŽ¨ FLAT DESIGN: Simple shapes, ONE accent pops
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER CORE MESSAGE:
 ${theirVision}
@@ -2056,69 +2090,69 @@ ${theirVision}
 CORE FEELING:
 ${coreFeeling}
 
-═══════════════════════════════════════════════════════════════════
-💡 STAND OUT - One Element Breaks the Pattern
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ’¡ STAND OUT - One Element Breaks the Pattern
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Like the matchstick poster - many similar elements,
 but ONE stands out with the accent color.
 
-🎵 RHYTHM PATTERN (BOLD CONTRAST!):
-• Typography: tiny → MASSIVE KEYWORD → small
-• Visual: ○○○○○● - simple shapes, ONE is accent color
-• Maximum 5-6 repeated elements, ONE stands out
-• The accent element must be OBVIOUSLY different
+ðŸŽµ RHYTHM PATTERN (BOLD CONTRAST!):
+â€¢ Typography: tiny â†’ MASSIVE KEYWORD â†’ small
+â€¢ Visual: â—‹â—‹â—‹â—‹â—‹â— - simple shapes, ONE is accent color
+â€¢ Maximum 5-6 repeated elements, ONE stands out
+â€¢ The accent element must be OBVIOUSLY different
 
-🎨 FLAT DESIGN RULES (SUPER SIMPLE!):
-• ONLY geometric shapes - circles, squares, lines
-• NO realistic illustrations (no hearts, no complex icons)
-• Solid flat colors - gray/black + ONE accent (orange)
-• Clean white/cream background
-• The visual must be SIMPLE but MEANINGFUL
+ðŸŽ¨ FLAT DESIGN RULES (SUPER SIMPLE!):
+â€¢ ONLY geometric shapes - circles, squares, lines
+â€¢ NO realistic illustrations (no hearts, no complex icons)
+â€¢ Solid flat colors - gray/black + ONE accent (orange)
+â€¢ Clean white/cream background
+â€¢ The visual must be SIMPLE but MEANINGFUL
 
 VISUAL STRUCTURE:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│  intro text line                                │
-│  ████████████████████████████                   │
-│  ██   KEYWORD   ██                              │
-│  ████████████████████████████                   │
-│  supporting text                                │
-│                                                 │
-│        ○ ○ ○ ○ ○ ○ ● ← ONE stands out!          │
-│        (gray gray gray ORANGE)                  │
-│                                                 │
-│  OR:  ||||||||| |  ← one taller                 │
-│  OR:  □□□□□□□■□ ← one different color           │
-│                                                 │
-│  • detail  • detail  • detail                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚  intro text line                                â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ                   â”‚
+â”‚  â–ˆâ–ˆ   KEYWORD   â–ˆâ–ˆ                              â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ                   â”‚
+â”‚  supporting text                                â”‚
+â”‚                                                 â”‚
+â”‚        â—‹ â—‹ â—‹ â—‹ â—‹ â—‹ â— â† ONE stands out!          â”‚
+â”‚        (gray gray gray ORANGE)                  â”‚
+â”‚                                                 â”‚
+â”‚  OR:  ||||||||| |  â† one taller                 â”‚
+â”‚  OR:  â–¡â–¡â–¡â–¡â–¡â–¡â–¡â– â–¡ â† one different color           â”‚
+â”‚                                                 â”‚
+â”‚  â€¢ detail  â€¢ detail  â€¢ detail                   â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 STAND OUT VISUAL IDEAS:
-• Matchsticks: all gray tips, ONE orange
-• Circles: all gray, ONE colored
-• People icons: all gray, ONE highlighted
-• Bars/lines: all same height, ONE taller
-• Arrows: all pointing one way, ONE different
+â€¢ Matchsticks: all gray tips, ONE orange
+â€¢ Circles: all gray, ONE colored
+â€¢ People icons: all gray, ONE highlighted
+â€¢ Bars/lines: all same height, ONE taller
+â€¢ Arrows: all pointing one way, ONE different
 
 STYLE:
-• Light or dark solid background
-• Simple flat shapes (no 3D)
-• Muted colors + ONE bright accent
-• Clean typography with size rhythm
-• The visual SHOWS the message
+â€¢ Light or dark solid background
+â€¢ Simple flat shapes (no 3D)
+â€¢ Muted colors + ONE bright accent
+â€¢ Clean typography with size rhythm
+â€¢ The visual SHOWS the message
 
-🎯 GOAL: Pattern pattern pattern → STAND OUT!`
+ðŸŽ¯ GOAL: Pattern pattern pattern â†’ STAND OUT!`
     },
     {
-      name: "🎯 Focus Flow",
-      prompt: `🎨 STEVE REDESIGN: 🎯 FOCUS FLOW (RHYTHM + FLAT)
+      name: "ðŸŽ¯ Focus Flow",
+      prompt: `ðŸŽ¨ STEVE REDESIGN: ðŸŽ¯ FOCUS FLOW (RHYTHM + FLAT)
 
-═══════════════════════════════════════════════════════════════════
-🎵 RHYTHM: Visual flow guides the eye through the message
-🎨 FLAT DESIGN: Clean arrows, simple shapes, one accent
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽµ RHYTHM: Visual flow guides the eye through the message
+ðŸŽ¨ FLAT DESIGN: Clean arrows, simple shapes, one accent
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 POSTER CORE MESSAGE:
 ${theirVision}
@@ -2126,66 +2160,66 @@ ${theirVision}
 CORE FEELING:
 ${coreFeeling}
 
-═══════════════════════════════════════════════════════════════════
-🎯 FOCUS FLOW - Guide the Eye with Visual Rhythm
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽ¯ FOCUS FLOW - Guide the Eye with Visual Rhythm
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 CONCEPT: Use arrows, lines, and flow to create RHYTHM.
 The eye follows a PATH through the design.
 
-🎵 FLOW RHYTHM (SIMPLE PATH!):
-• Typography: tiny → MASSIVE KEYWORD → small
-• Visual: simple dashed arrow showing A → B journey
-• Maximum 3-4 elements along the path
-• Clear visual flow - eye knows where to go
+ðŸŽµ FLOW RHYTHM (SIMPLE PATH!):
+â€¢ Typography: tiny â†’ MASSIVE KEYWORD â†’ small
+â€¢ Visual: simple dashed arrow showing A â†’ B journey
+â€¢ Maximum 3-4 elements along the path
+â€¢ Clear visual flow - eye knows where to go
 
-🎨 FLAT DESIGN RULES (GEOMETRIC ONLY!):
-• Simple dashed lines and arrows (no complex curves)
-• Basic shapes: circles, squares, simple icons
-• NO realistic illustrations (no anatomical hearts!)
-• ONE accent color (orange) for focal points
-• Clean white/cream background
+ðŸŽ¨ FLAT DESIGN RULES (GEOMETRIC ONLY!):
+â€¢ Simple dashed lines and arrows (no complex curves)
+â€¢ Basic shapes: circles, squares, simple icons
+â€¢ NO realistic illustrations (no anatomical hearts!)
+â€¢ ONE accent color (orange) for focal points
+â€¢ Clean white/cream background
 
 VISUAL STRUCTURE:
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│  ████████████████████████                       │
-│  ██   HEADLINE   ██                             │
-│  ████████████████████████                       │
-│                                                 │
-│        ╭─ ─ ─ ─ ─ ─ ─ ─ ─╮                      │
-│        ↓                 ↓                      │
-│     [START]    →→→    [END]                     │
-│     (problem)        (solution)                 │
-│        ↑                                        │
-│        ╰─ ─ ─ ─ ─ ─ ─ ─ ─                       │
-│                                                 │
-│  step 1 → step 2 → step 3 → step 4              │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ                       â”‚
+â”‚  â–ˆâ–ˆ   HEADLINE   â–ˆâ–ˆ                             â”‚
+â”‚  â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ                       â”‚
+â”‚                                                 â”‚
+â”‚        â•­â”€ â”€ â”€ â”€ â”€ â”€ â”€ â”€ â”€â•®                      â”‚
+â”‚        â†“                 â†“                      â”‚
+â”‚     [START]    â†’â†’â†’    [END]                     â”‚
+â”‚     (problem)        (solution)                 â”‚
+â”‚        â†‘                                        â”‚
+â”‚        â•°â”€ â”€ â”€ â”€ â”€ â”€ â”€ â”€ â”€                       â”‚
+â”‚                                                 â”‚
+â”‚  step 1 â†’ step 2 â†’ step 3 â†’ step 4              â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 FLOW ELEMENTS (FLAT):
-• Dashed curved arrows (showing journey)
-• Simple flat icons at key points
-• Linear process: A → B → C → D
-• Circular flow returning to start
-• Connecting lines between elements
+â€¢ Dashed curved arrows (showing journey)
+â€¢ Simple flat icons at key points
+â€¢ Linear process: A â†’ B â†’ C â†’ D
+â€¢ Circular flow returning to start
+â€¢ Connecting lines between elements
 
 STYLE:
-• Clean background (light or dark)
-• Black/white + ONE accent color
-• Flat arrows and lines (no 3D)
-• Typography with size rhythm
-• Visual flow guides the eye
+â€¢ Clean background (light or dark)
+â€¢ Black/white + ONE accent color
+â€¢ Flat arrows and lines (no 3D)
+â€¢ Typography with size rhythm
+â€¢ Visual flow guides the eye
 
-🎯 GOAL: The eye FLOWS through the design naturally!`
+ðŸŽ¯ GOAL: The eye FLOWS through the design naturally!`
     }
   ];
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 🔍 POSTER TYPE DETECTION (Legacy - for greeting/event specific styles)
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ðŸ” POSTER TYPE DETECTION (Legacy - for greeting/event specific styles)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 type PosterType = "greeting" | "event" | "product" | "unknown";
 
 function detectPosterType(analysisResult: any): PosterType {
@@ -2194,18 +2228,18 @@ function detectPosterType(analysisResult: any): PosterType {
   const analysisText = JSON.stringify(analysisResult).toLowerCase();
 
   // EVENT indicators: person, date, location, announcement, seminar, training
-  const eventKeywords = ["person", "хүн", "event", "date", "огноо", "сар", "location",
-    "announcement", "зарлал", "seminar", "сургалт", "training", "workshop", "conference",
-    "chicago", "байршил", "speaker", "илтгэгч", "meeting"];
+  const eventKeywords = ["person", "Ñ…Ò¯Ð½", "event", "date", "Ð¾Ð³Ð½Ð¾Ð¾", "ÑÐ°Ñ€", "location",
+    "announcement", "Ð·Ð°Ñ€Ð»Ð°Ð»", "seminar", "ÑÑƒÑ€Ð³Ð°Ð»Ñ‚", "training", "workshop", "conference",
+    "chicago", "Ð±Ð°Ð¹Ñ€ÑˆÐ¸Ð»", "speaker", "Ð¸Ð»Ñ‚Ð³ÑÐ³Ñ‡", "meeting"];
 
   // GREETING indicators: thank you, flower, birthday, congratulation
-  const greetingKeywords = ["thank", "баярлалаа", "flower", "цэцэг", "birthday",
-    "төрсөн өдөр", "congratulation", "баяр хүргэе", "greeting", "мэндчилгээ",
-    "love", "хайр", "mother", "эх", "father", "аав", "wish"];
+  const greetingKeywords = ["thank", "Ð±Ð°ÑÑ€Ð»Ð°Ð»Ð°Ð°", "flower", "Ñ†ÑÑ†ÑÐ³", "birthday",
+    "Ñ‚Ó©Ñ€ÑÓ©Ð½ Ó©Ð´Ó©Ñ€", "congratulation", "Ð±Ð°ÑÑ€ Ñ…Ò¯Ñ€Ð³ÑÐµ", "greeting", "Ð¼ÑÐ½Ð´Ñ‡Ð¸Ð»Ð³ÑÑ",
+    "love", "Ñ…Ð°Ð¹Ñ€", "mother", "ÑÑ…", "father", "Ð°Ð°Ð²", "wish"];
 
   // PRODUCT indicators: sale, price, discount, product, buy
-  const productKeywords = ["sale", "хямдрал", "price", "үнэ", "discount", "%",
-    "product", "бүтээгдэхүүн", "buy", "худалдаа", "shop", "дэлгүүр", "offer"];
+  const productKeywords = ["sale", "Ñ…ÑÐ¼Ð´Ñ€Ð°Ð»", "price", "Ò¯Ð½Ñ", "discount", "%",
+    "product", "Ð±Ò¯Ñ‚ÑÑÐ³Ð´ÑÑ…Ò¯Ò¯Ð½", "buy", "Ñ…ÑƒÐ´Ð°Ð»Ð´Ð°Ð°", "shop", "Ð´ÑÐ»Ð³Ò¯Ò¯Ñ€", "offer"];
 
   let eventScore = 0;
   let greetingScore = 0;
@@ -2215,7 +2249,7 @@ function detectPosterType(analysisResult: any): PosterType {
   greetingKeywords.forEach(kw => { if (analysisText.includes(kw)) greetingScore++; });
   productKeywords.forEach(kw => { if (analysisText.includes(kw)) productScore++; });
 
-  console.log(`📊 Poster type scores: Event=${eventScore}, Greeting=${greetingScore}, Product=${productScore}`);
+  console.log(`ðŸ“Š Poster type scores: Event=${eventScore}, Greeting=${greetingScore}, Product=${productScore}`);
 
   if (eventScore > greetingScore && eventScore > productScore) return "event";
   if (greetingScore > eventScore && greetingScore > productScore) return "greeting";
@@ -2224,347 +2258,347 @@ function detectPosterType(analysisResult: any): PosterType {
   return "unknown";
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 🎉 EVENT POSTER REDESIGN PROMPTS (Person + Event Announcement)
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ðŸŽ‰ EVENT POSTER REDESIGN PROMPTS (Person + Event Announcement)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const EVENT_REDESIGN_PROMPTS = [
   {
-    name: "🎯 Modern Clean",
-    prompt: `🔧 EVENT POSTER REDESIGN: 🎯 MODERN CLEAN STYLE
+    name: "ðŸŽ¯ Modern Clean",
+    prompt: `ðŸ”§ EVENT POSTER REDESIGN: ðŸŽ¯ MODERN CLEAN STYLE
 
-═══════════════════════════════════════════════════════════════════
-⚠️ THIS IS AN EVENT ANNOUNCEMENT POSTER WITH A PERSON!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš ï¸ THIS IS AN EVENT ANNOUNCEMENT POSTER WITH A PERSON!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 MUST PRESERVE:
-✅ The PERSON (face must be IDENTICAL!)
-✅ The EVENT information (date, location, title)
-✅ The brand/name
+âœ… The PERSON (face must be IDENTICAL!)
+âœ… The EVENT information (date, location, title)
+âœ… The brand/name
 
 REDESIGN TO MODERN CLEAN STYLE:
-┌─────────────────────────────────────────────────┐
-│  [brand/logo]                                   │
-│                                                 │
-│         EVENT TITLE                             │
-│      (bold, modern font)                        │
-│                                                 │
-│         📅 Date  📍 Location                   │
-│                                                 │
-│              👤                                 │
-│         [PERSON PHOTO]                          │
-│      (clean cutout, centered)                   │
-│                                                 │
-│         Speaker Name                            │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  [brand/logo]                                   â”‚
+â”‚                                                 â”‚
+â”‚         EVENT TITLE                             â”‚
+â”‚      (bold, modern font)                        â”‚
+â”‚                                                 â”‚
+â”‚         ðŸ“… Date  ðŸ“ Location                   â”‚
+â”‚                                                 â”‚
+â”‚              ðŸ‘¤                                 â”‚
+â”‚         [PERSON PHOTO]                          â”‚
+â”‚      (clean cutout, centered)                   â”‚
+â”‚                                                 â”‚
+â”‚         Speaker Name                            â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 STYLE:
-• Clean solid background (gradient or single color)
-• Modern sans-serif typography
-• Person photo with clean edges
-• Clear hierarchy: Title → Date/Location → Person
-• Professional, corporate quality`
+â€¢ Clean solid background (gradient or single color)
+â€¢ Modern sans-serif typography
+â€¢ Person photo with clean edges
+â€¢ Clear hierarchy: Title â†’ Date/Location â†’ Person
+â€¢ Professional, corporate quality`
   },
   {
-    name: "✨ Premium Dark",
-    prompt: `🔧 EVENT POSTER REDESIGN: ✨ PREMIUM DARK STYLE
+    name: "âœ¨ Premium Dark",
+    prompt: `ðŸ”§ EVENT POSTER REDESIGN: âœ¨ PREMIUM DARK STYLE
 
-═══════════════════════════════════════════════════════════════════
-⚠️ THIS IS AN EVENT ANNOUNCEMENT POSTER WITH A PERSON!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš ï¸ THIS IS AN EVENT ANNOUNCEMENT POSTER WITH A PERSON!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 MUST PRESERVE:
-✅ The PERSON (face must be IDENTICAL!)
-✅ The EVENT information (date, location, title)
-✅ The brand/name
+âœ… The PERSON (face must be IDENTICAL!)
+âœ… The EVENT information (date, location, title)
+âœ… The brand/name
 
 REDESIGN TO PREMIUM DARK STYLE:
-┌─────────────────────────────────────────────────┐
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓ [brand] ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓ EVENT TITLE ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓ (gold/white) ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 👤 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓ [PERSON] ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓ 📅 Date  📍 Location ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ [brand] â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ EVENT TITLE â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ (gold/white) â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ ðŸ‘¤ â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ [PERSON] â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“ ðŸ“… Date  ðŸ“ Location â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 STYLE:
-• Dark background (black, navy, dark purple)
-• Gold or white elegant text
-• Person dramatically lit
-• Luxury, premium feeling
-• High contrast, professional`
+â€¢ Dark background (black, navy, dark purple)
+â€¢ Gold or white elegant text
+â€¢ Person dramatically lit
+â€¢ Luxury, premium feeling
+â€¢ High contrast, professional`
   },
   {
-    name: "🌈 Vibrant Gradient",
-    prompt: `🔧 EVENT POSTER REDESIGN: 🌈 VIBRANT GRADIENT STYLE
+    name: "ðŸŒˆ Vibrant Gradient",
+    prompt: `ðŸ”§ EVENT POSTER REDESIGN: ðŸŒˆ VIBRANT GRADIENT STYLE
 
-═══════════════════════════════════════════════════════════════════
-⚠️ THIS IS AN EVENT ANNOUNCEMENT POSTER WITH A PERSON!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš ï¸ THIS IS AN EVENT ANNOUNCEMENT POSTER WITH A PERSON!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 MUST PRESERVE:
-✅ The PERSON (face must be IDENTICAL!)
-✅ The EVENT information (date, location, title)
-✅ The brand/name
+âœ… The PERSON (face must be IDENTICAL!)
+âœ… The EVENT information (date, location, title)
+âœ… The brand/name
 
 REDESIGN TO VIBRANT GRADIENT STYLE:
-• Bold, colorful gradient background
-• Modern, energetic typography
-• Person with dynamic pose
-• Eye-catching, social media friendly
-• Contemporary, trendy design
+â€¢ Bold, colorful gradient background
+â€¢ Modern, energetic typography
+â€¢ Person with dynamic pose
+â€¢ Eye-catching, social media friendly
+â€¢ Contemporary, trendy design
 
 STYLE:
-• Gradient background (purple-pink, blue-teal, orange-yellow)
-• Bold white or dark text
-• Clean person cutout
-• Modern, Instagram-worthy
-• Energetic and exciting`
+â€¢ Gradient background (purple-pink, blue-teal, orange-yellow)
+â€¢ Bold white or dark text
+â€¢ Clean person cutout
+â€¢ Modern, Instagram-worthy
+â€¢ Energetic and exciting`
   },
   {
-    name: "📐 Minimal Grid",
-    prompt: `🔧 EVENT POSTER REDESIGN: 📐 MINIMAL GRID STYLE
+    name: "ðŸ“ Minimal Grid",
+    prompt: `ðŸ”§ EVENT POSTER REDESIGN: ðŸ“ MINIMAL GRID STYLE
 
-═══════════════════════════════════════════════════════════════════
-⚠️ THIS IS AN EVENT ANNOUNCEMENT POSTER WITH A PERSON!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš ï¸ THIS IS AN EVENT ANNOUNCEMENT POSTER WITH A PERSON!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 MUST PRESERVE:
-✅ The PERSON (face must be IDENTICAL!)
-✅ The EVENT information (date, location, title)
-✅ The brand/name
+âœ… The PERSON (face must be IDENTICAL!)
+âœ… The EVENT information (date, location, title)
+âœ… The brand/name
 
 REDESIGN TO MINIMAL GRID STYLE:
-• Clean white or light background
-• Strong grid-based layout
-• Lots of white space
-• Minimal, Swiss design inspired
-• Typography-focused
+â€¢ Clean white or light background
+â€¢ Strong grid-based layout
+â€¢ Lots of white space
+â€¢ Minimal, Swiss design inspired
+â€¢ Typography-focused
 
 STYLE:
-• Maximum white space
-• Black text, minimal color
-• Person photo in clean frame
-• Grid alignment
-• Professional, editorial quality`
+â€¢ Maximum white space
+â€¢ Black text, minimal color
+â€¢ Person photo in clean frame
+â€¢ Grid alignment
+â€¢ Professional, editorial quality`
   }
 ];
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 🌸 GREETING/FLOWER POSTER REDESIGN PROMPTS
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ðŸŒ¸ GREETING/FLOWER POSTER REDESIGN PROMPTS
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 const GREETING_REDESIGN_PROMPTS = [
   {
     name: "?? Watercolor",
-    prompt: `🔧 COMPLETE REDESIGN: 🎨 WATERCOLOR + NEW LAYOUT
+    prompt: `ðŸ”§ COMPLETE REDESIGN: ðŸŽ¨ WATERCOLOR + NEW LAYOUT
 
-═══════════════════════════════════════════════════════════════════
-⚠️ THIS IS A LAYOUT REDESIGN, NOT JUST AN EFFECT!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš ï¸ THIS IS A LAYOUT REDESIGN, NOT JUST AN EFFECT!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-🚫 DO NOT COPY THE ORIGINAL LAYOUT!
-🚫 Original has: flower LEFT, text RIGHT → DO NOT DO THIS!
-🚫 CREATE A COMPLETELY NEW COMPOSITION!
+ðŸš« DO NOT COPY THE ORIGINAL LAYOUT!
+ðŸš« Original has: flower LEFT, text RIGHT â†’ DO NOT DO THIS!
+ðŸš« CREATE A COMPLETELY NEW COMPOSITION!
 
-═══════════════════════════════════════════════════════════════════
-📐 NEW LAYOUT: CENTERED GREETING CARD
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ“ NEW LAYOUT: CENTERED GREETING CARD
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-┌─────────────────────────────────────────────────┐
-│               [brand - small]                   │
-│                                                 │
-│                    🌻                           │
-│              WATERCOLOR FLOWER                  │
-│                (CENTERED)                       │
-│                                                 │
-│               Thank You                         │
-│            (centered below)                     │
-│                                                 │
-│        secondary message here                   │
-│                                                 │
-│               [footer]                          │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚               [brand - small]                   â”‚
+â”‚                                                 â”‚
+â”‚                    ðŸŒ»                           â”‚
+â”‚              WATERCOLOR FLOWER                  â”‚
+â”‚                (CENTERED)                       â”‚
+â”‚                                                 â”‚
+â”‚               Thank You                         â”‚
+â”‚            (centered below)                     â”‚
+â”‚                                                 â”‚
+â”‚        secondary message here                   â”‚
+â”‚                                                 â”‚
+â”‚               [footer]                          â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 LAYOUT REQUIREMENTS:
-• Flower in CENTER of design (not left, not right!)
-• Text BELOW flower (not beside it!)
-• Everything CENTERED and balanced
-• 30-40% white space around edges
-• Greeting card proportions
+â€¢ Flower in CENTER of design (not left, not right!)
+â€¢ Text BELOW flower (not beside it!)
+â€¢ Everything CENTERED and balanced
+â€¢ 30-40% white space around edges
+â€¢ Greeting card proportions
 
 VISUAL STYLE:
-• Soft watercolor illustration
-• Color bleeds, visible brushstrokes
-• Cream/white clean background
-• Elegant script typography
+â€¢ Soft watercolor illustration
+â€¢ Color bleeds, visible brushstrokes
+â€¢ Cream/white clean background
+â€¢ Elegant script typography
 
 CREATE A NEW DESIGN, NOT A FILTERED VERSION!`
   },
   {
     name: "?? Pencil",
-    prompt: `🔧 COMPLETE REDESIGN: ✏️ PENCIL + MINIMAL LAYOUT
+    prompt: `ðŸ”§ COMPLETE REDESIGN: âœï¸ PENCIL + MINIMAL LAYOUT
 
-═══════════════════════════════════════════════════════════════════
-⚠️ THIS IS A LAYOUT REDESIGN, NOT JUST AN EFFECT!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš ï¸ THIS IS A LAYOUT REDESIGN, NOT JUST AN EFFECT!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-🚫 DO NOT COPY THE ORIGINAL LAYOUT!
-🚫 Original has: flower LEFT, text RIGHT → DO NOT DO THIS!
-🚫 CREATE A COMPLETELY NEW COMPOSITION!
+ðŸš« DO NOT COPY THE ORIGINAL LAYOUT!
+ðŸš« Original has: flower LEFT, text RIGHT â†’ DO NOT DO THIS!
+ðŸš« CREATE A COMPLETELY NEW COMPOSITION!
 
-═══════════════════════════════════════════════════════════════════
-📐 NEW LAYOUT: MINIMAL ART PRINT (70% WHITE SPACE!)
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ“ NEW LAYOUT: MINIMAL ART PRINT (70% WHITE SPACE!)
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│                                                 │
-│                                                 │
-│                   🌻                            │
-│              (small flower)                     │
-│                                                 │
-│                                                 │
-│              thank you                          │
-│           (tiny elegant text)                   │
-│                                                 │
-│                                                 │
-│                                                 │
-│                                                 │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚                   ðŸŒ»                            â”‚
+â”‚              (small flower)                     â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚              thank you                          â”‚
+â”‚           (tiny elegant text)                   â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 LAYOUT REQUIREMENTS:
-• 70% OF THE POSTER IS EMPTY WHITE SPACE!
-• Small, delicate flower in center
-• Tiny elegant text below
-• Museum art print feeling
-• Extreme minimalism
+â€¢ 70% OF THE POSTER IS EMPTY WHITE SPACE!
+â€¢ Small, delicate flower in center
+â€¢ Tiny elegant text below
+â€¢ Museum art print feeling
+â€¢ Extreme minimalism
 
 VISUAL STYLE:
-• Black & white or sepia pencil sketch
-• Fine linework, delicate shading
-• Clean white/cream background
-• Thin, elegant typography
+â€¢ Black & white or sepia pencil sketch
+â€¢ Fine linework, delicate shading
+â€¢ Clean white/cream background
+â€¢ Thin, elegant typography
 
 CREATE A NEW DESIGN, NOT A FILTERED VERSION!`
   },
   {
-    name: "📷 Real",
-    prompt: `🔧 COMPLETE REDESIGN: 📷 REAL PHOTO - SWEET & DELICATE
+    name: "ðŸ“· Real",
+    prompt: `ðŸ”§ COMPLETE REDESIGN: ðŸ“· REAL PHOTO - SWEET & DELICATE
 
-═══════════════════════════════════════════════════════════════════
-⚠️ THIS IS A LAYOUT REDESIGN, NOT JUST AN EFFECT!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš ï¸ THIS IS A LAYOUT REDESIGN, NOT JUST AN EFFECT!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-🚫 DO NOT COPY THE ORIGINAL LAYOUT!
-🚫 Original has: flower LEFT, text RIGHT → DO NOT DO THIS!
-🚫 CREATE A COMPLETELY NEW COMPOSITION!
+ðŸš« DO NOT COPY THE ORIGINAL LAYOUT!
+ðŸš« Original has: flower LEFT, text RIGHT â†’ DO NOT DO THIS!
+ðŸš« CREATE A COMPLETELY NEW COMPOSITION!
 
-═══════════════════════════════════════════════════════════════════
-📐 NEW LAYOUT: TEXT TOP, SMALL DELICATE FLOWER BOTTOM
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ“ NEW LAYOUT: TEXT TOP, SMALL DELICATE FLOWER BOTTOM
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│            [brand - small]                      │
-│                                                 │
-│             Thank You                           │
-│          (elegant, centered)                    │
-│                                                 │
-│       May happiness and joy...                  │
-│          (soft secondary text)                  │
-│                                                 │
-│                                                 │
-│                                                 │
-│                 🌼                              │
-│         (SMALL, delicate flower)                │
-│          (thin stem, gentle)                    │
-│                                                 │
-│              [footer]                           │
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                                                 â”‚
+â”‚            [brand - small]                      â”‚
+â”‚                                                 â”‚
+â”‚             Thank You                           â”‚
+â”‚          (elegant, centered)                    â”‚
+â”‚                                                 â”‚
+â”‚       May happiness and joy...                  â”‚
+â”‚          (soft secondary text)                  â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚                                                 â”‚
+â”‚                 ðŸŒ¼                              â”‚
+â”‚         (SMALL, delicate flower)                â”‚
+â”‚          (thin stem, gentle)                    â”‚
+â”‚                                                 â”‚
+â”‚              [footer]                           â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
-🌸 THE FEELING MUST BE: SWEET, LIGHT, GENTLE, SOFT 🌸
+ðŸŒ¸ THE FEELING MUST BE: SWEET, LIGHT, GENTLE, SOFT ðŸŒ¸
 
 FLOWER SIZE & PROPORTION:
-• Flower should be SMALL - only 25-35% of the poster height
-• NOT big and bold - DELICATE and sweet
-• Single thin stem
-• Lots of EMPTY SPACE around the flower
-• The flower should feel LIGHT, not heavy
+â€¢ Flower should be SMALL - only 25-35% of the poster height
+â€¢ NOT big and bold - DELICATE and sweet
+â€¢ Single thin stem
+â€¢ Lots of EMPTY SPACE around the flower
+â€¢ The flower should feel LIGHT, not heavy
 
 BACKGROUND:
-• SOFT, MUTED color that matches the flower
-• Yellow flower → Soft golden/cream yellow (not bright!)
-• Pink flower → Soft blush pink
-• The color should be GENTLE, not saturated
+â€¢ SOFT, MUTED color that matches the flower
+â€¢ Yellow flower â†’ Soft golden/cream yellow (not bright!)
+â€¢ Pink flower â†’ Soft blush pink
+â€¢ The color should be GENTLE, not saturated
 
 TYPOGRAPHY:
-• Elegant, SOFT typography
-• Not too bold - refined and gentle
-• White or cream colored text
-• Should feel SWEET and WARM
+â€¢ Elegant, SOFT typography
+â€¢ Not too bold - refined and gentle
+â€¢ White or cream colored text
+â€¢ Should feel SWEET and WARM
 
 THE OVERALL FEELING:
-• Like a gentle whisper, not a shout
-• Sweet, warm, personal
-• Light and airy, not heavy
-• Delicate and refined
-• Makes you feel warm inside
+â€¢ Like a gentle whisper, not a shout
+â€¢ Sweet, warm, personal
+â€¢ Light and airy, not heavy
+â€¢ Delicate and refined
+â€¢ Makes you feel warm inside
 
-⚠️ DO NOT make the flower too big or dominant!
-⚠️ The feeling must be SWEET and GENTLE!`
+âš ï¸ DO NOT make the flower too big or dominant!
+âš ï¸ The feeling must be SWEET and GENTLE!`
   },
   {
-    name: "✨ Elegant",
-    prompt: `🔧 COMPLETE REDESIGN: ✨ ELEGANT - DARK BG, TEXT TOP, FLOWER BOTTOM
+    name: "âœ¨ Elegant",
+    prompt: `ðŸ”§ COMPLETE REDESIGN: âœ¨ ELEGANT - DARK BG, TEXT TOP, FLOWER BOTTOM
 
-═══════════════════════════════════════════════════════════════════
-⚠️ THIS IS A LAYOUT REDESIGN, NOT JUST AN EFFECT!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âš ï¸ THIS IS A LAYOUT REDESIGN, NOT JUST AN EFFECT!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-🚫 DO NOT COPY THE ORIGINAL LAYOUT!
-🚫 Original has: flower LEFT, text RIGHT → DO NOT DO THIS!
-🚫 CREATE A COMPLETELY NEW COMPOSITION!
+ðŸš« DO NOT COPY THE ORIGINAL LAYOUT!
+ðŸš« Original has: flower LEFT, text RIGHT â†’ DO NOT DO THIS!
+ðŸš« CREATE A COMPLETELY NEW COMPOSITION!
 
-═══════════════════════════════════════════════════════════════════
-📐 NEW LAYOUT: DARK BACKGROUND, TEXT TOP, REAL FLOWER BOTTOM CENTER
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸ“ NEW LAYOUT: DARK BACKGROUND, TEXT TOP, REAL FLOWER BOTTOM CENTER
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-┌─────────────────────────────────────────────────┐
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓ Thank You ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓ (GOLD text, TOP) ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓ May happiness and joy... ▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 🌻 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓ REAL FLOWER ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓ (bottom, centered) ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-│▓▓▓▓▓▓▓▓▓▓▓ [brand footer] ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│
-└─────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ Thank You â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“ (GOLD text, TOP) â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“ May happiness and joy... â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ ðŸŒ» â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ REAL FLOWER â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“ (bottom, centered) â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â”‚â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“ [brand footer] â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â–“â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 LAYOUT REQUIREMENTS:
-• DARK background (dark navy blue or black)
-• Text at TOP in GOLD/CREAM color
-• Real flower photo at BOTTOM CENTER
-• Single flower with stem
-• Luxury, dramatic, elegant feeling
+â€¢ DARK background (dark navy blue or black)
+â€¢ Text at TOP in GOLD/CREAM color
+â€¢ Real flower photo at BOTTOM CENTER
+â€¢ Single flower with stem
+â€¢ Luxury, dramatic, elegant feeling
 
 VISUAL STYLE:
-• REAL flower photograph (not illustration!)
-• Single flower with stem, dramatic lighting
-• Dark navy/black solid background
-• GOLD or CREAM colored text (not white!)
-• Elegant serif or script typography
-• High contrast, luxury magazine quality
+â€¢ REAL flower photograph (not illustration!)
+â€¢ Single flower with stem, dramatic lighting
+â€¢ Dark navy/black solid background
+â€¢ GOLD or CREAM colored text (not white!)
+â€¢ Elegant serif or script typography
+â€¢ High contrast, luxury magazine quality
 
 THIS LOOKS LIKE A LUXURY BRAND AD OR VOGUE MAGAZINE!`
   }
@@ -2593,6 +2627,39 @@ function getDimensions(aspectRatio: AspectRatio): { width: number; height: numbe
     "3:4": { width: 768, height: 1024 },    // Standard portrait
   };
   return dimensions[aspectRatio] || dimensions["9:16"];
+}
+
+function closestAspectRatioForSize(width: number, height: number): AspectRatio {
+  const sourceRatio = width / height;
+  const candidates: AspectRatio[] = ["9:16", "16:9", "1:1", "4:5", "3:4"];
+  let best: AspectRatio = "9:16";
+  let bestDiff = Number.POSITIVE_INFINITY;
+
+  for (const ratio of candidates) {
+    const d = getDimensions(ratio);
+    const targetRatio = d.width / d.height;
+    const diff = Math.abs(sourceRatio - targetRatio);
+    if (diff < bestDiff) {
+      best = ratio;
+      bestDiff = diff;
+    }
+  }
+
+  return best;
+}
+
+async function detectAspectRatioFromSourceImage(imageData?: string | null): Promise<AspectRatio | null> {
+  if (!imageData) return null;
+  const match = imageData.match(/^data:(.+);base64,(.+)$/);
+  if (!match) return null;
+  try {
+    const buffer = Buffer.from(match[2], "base64");
+    const metadata = await sharp(buffer).metadata();
+    if (!metadata.width || !metadata.height) return null;
+    return closestAspectRatioForSize(metadata.width, metadata.height);
+  } catch {
+    return null;
+  }
 }
 
 async function normalizeAspectRatio(imageData: string, aspectRatio: AspectRatio): Promise<string> {
@@ -2687,191 +2754,13 @@ async function normalizeToSourceAspect(imageData: string, sourceImageData: strin
   return `data:${mimeType};base64,${normalized.toString("base64")}`;
 }
 
-async function lockSourceLogoBlock(originalImageData: string, generatedImageData: string): Promise<string> {
-  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-  try {
-    const originalMatch = originalImageData.match(/^data:(.+);base64,(.+)$/);
-    const generatedMatch = generatedImageData.match(/^data:(.+);base64,(.+)$/);
-    if (!originalMatch || !generatedMatch) return generatedImageData;
-
-    const originalBuffer = Buffer.from(originalMatch[2], "base64");
-    const generatedBuffer = Buffer.from(generatedMatch[2], "base64");
-
-    const originalMeta = await sharp(originalBuffer).metadata();
-    if (!originalMeta.width || !originalMeta.height) return generatedImageData;
-
-    const targetWidth = originalMeta.width;
-    const targetHeight = originalMeta.height;
-    const preparedGenerated = await sharp(generatedBuffer)
-      .resize(targetWidth, targetHeight, { fit: "cover" })
-      .png()
-      .toBuffer();
-
-    // Keep logo region centered/top but slightly tighter to avoid a visible rectangular patch.
-    const left = Math.max(0, Math.floor(targetWidth * 0.24));
-    const top = Math.max(0, Math.floor(targetHeight * 0.04));
-    const width = Math.max(1, Math.min(Math.floor(targetWidth * 0.52), targetWidth - left));
-    const height = Math.max(1, Math.min(Math.floor(targetHeight * 0.24), targetHeight - top));
-
-    const logoPatch = await sharp(originalBuffer)
-      .extract({ left, top, width, height })
-      .png()
-      .toBuffer();
-
-    const generatedPatch = await sharp(preparedGenerated)
-      .extract({ left, top, width, height })
-      .png()
-      .toBuffer();
-
-    // Harmonize tone so the preserved logo patch blends into the new poster lighting.
-    const srcAvg = await sharp(logoPatch).resize(1, 1).removeAlpha().raw().toBuffer();
-    const dstAvg = await sharp(generatedPatch).resize(1, 1).removeAlpha().raw().toBuffer();
-    const channelScale: [number, number, number] = [
-      clamp(dstAvg[0] / Math.max(srcAvg[0], 1), 0.85, 1.15),
-      clamp(dstAvg[1] / Math.max(srcAvg[1], 1), 0.85, 1.15),
-      clamp(dstAvg[2] / Math.max(srcAvg[2], 1), 0.85, 1.15),
-    ];
-    const brightnessScale = clamp(
-      (dstAvg[0] + dstAvg[1] + dstAvg[2]) / Math.max(srcAvg[0] + srcAvg[1] + srcAvg[2], 1),
-      0.92,
-      1.08
-    );
-
-    const harmonizedPatch = await sharp(logoPatch)
-      .removeAlpha()
-      .linear(channelScale, [0, 0, 0])
-      .modulate({ brightness: brightnessScale })
-      .png()
-      .toBuffer();
-
-    // Build a logo-focused matte (not a full rectangle) so the logo integrates into new background.
-    const sourceRaw = await sharp(logoPatch).removeAlpha().raw().toBuffer();
-    const generatedRaw = await sharp(generatedPatch).removeAlpha().raw().toBuffer();
-    const sourceBlurRaw = await sharp(logoPatch).removeAlpha().blur(12).raw().toBuffer();
-
-    // Estimate local background color from border pixels of the source logo patch.
-    const bgBorder = Math.max(2, Math.round(Math.min(width, height) * 0.08));
-    let bgSumR = 0;
-    let bgSumG = 0;
-    let bgSumB = 0;
-    let bgCount = 0;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (x < bgBorder || x >= width - bgBorder || y < bgBorder || y >= height - bgBorder) {
-          const o = (y * width + x) * 3;
-          bgSumR += sourceRaw[o];
-          bgSumG += sourceRaw[o + 1];
-          bgSumB += sourceRaw[o + 2];
-          bgCount += 1;
-        }
-      }
-    }
-    const bgR = bgCount > 0 ? bgSumR / bgCount : 240;
-    const bgG = bgCount > 0 ? bgSumG / bgCount : 240;
-    const bgB = bgCount > 0 ? bgSumB / bgCount : 240;
-    const detailMaskRaw = Buffer.alloc(width * height);
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = y * width + x;
-        const o = idx * 3;
-        const r = sourceRaw[o];
-        const g = sourceRaw[o + 1];
-        const b = sourceRaw[o + 2];
-        const gr = generatedRaw[o];
-        const gg = generatedRaw[o + 1];
-        const gb = generatedRaw[o + 2];
-        const br = sourceBlurRaw[o];
-        const bg = sourceBlurRaw[o + 1];
-        const bb = sourceBlurRaw[o + 2];
-
-        const diff = Math.max(Math.abs(r - br), Math.abs(g - bg), Math.abs(b - bb));
-        const crossDiff = Math.max(Math.abs(r - gr), Math.abs(g - gg), Math.abs(b - gb));
-        const maxC = Math.max(r, g, b);
-        const minC = Math.min(r, g, b);
-        const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
-
-        const detail = clamp((diff - 16) / 56, 0, 1);
-        const chroma = clamp((saturation - 0.14) / 0.38, 0, 1);
-        const strengthRaw = Math.max(detail * 1.2, chroma * 0.85);
-        const diffGate = clamp((crossDiff - 18) / 70, 0, 1);
-        const baseStrength = clamp((strengthRaw - 0.30) / 0.70, 0, 1);
-        const isNeutralBright = maxC > 210 && saturation < 0.10;
-        const strength = isNeutralBright ? 0 : baseStrength * Math.max(0.55, diffGate);
-        detailMaskRaw[idx] = Math.round(strength * 255);
-      }
-    }
-
-    const softenedDetailRaw = await sharp(detailMaskRaw, {
-      raw: { width, height, channels: 1 },
-    })
-      .blur(1.6)
-      .raw()
-      .toBuffer();
-
-    // Combine detail matte with edge feather to avoid visible patch boundaries.
-    const featherX = Math.max(10, Math.round(width * 0.10));
-    const featherY = Math.max(10, Math.round(height * 0.12));
-    const maxAlpha = 245;
-    const alphaRaw = Buffer.alloc(width * height);
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = y * width + x;
-        const edgeX = Math.min(x, width - 1 - x);
-        const edgeY = Math.min(y, height - 1 - y);
-        const ax = clamp(edgeX / featherX, 0, 1);
-        const ay = clamp(edgeY / featherY, 0, 1);
-        const feather = Math.min(ax, ay);
-        const detail = softenedDetailRaw[idx] / 255;
-        const core = detail > 0.30 ? Math.pow((detail - 0.30) / 0.70, 1.2) : 0;
-        const o = idx * 3;
-        const r = sourceRaw[o];
-        const g = sourceRaw[o + 1];
-        const b = sourceRaw[o + 2];
-        const maxC = Math.max(r, g, b);
-        const minC = Math.min(r, g, b);
-        const sat = maxC === 0 ? 0 : (maxC - minC) / maxC;
-        const distToBg = Math.sqrt(
-          (r - bgR) * (r - bgR) + (g - bgG) * (g - bgG) + (b - bgB) * (b - bgB)
-        );
-        const bgKey = clamp((distToBg - 18) / 80, 0, 1);
-        const satKey = clamp((sat - 0.08) / 0.45, 0, 1);
-        const nearBg = distToBg < 26 && sat < 0.12;
-        const keep = nearBg ? 0 : Math.max(bgKey, satKey);
-        alphaRaw[idx] = Math.round(maxAlpha * core * feather * keep);
-      }
-    }
-
-    const alphaMask = await sharp(alphaRaw, { raw: { width, height, channels: 1 } })
-      .linear(1.35, -24)
-      .blur(0.7)
-      .png()
-      .toBuffer();
-
-    const softenedPatch = await sharp(harmonizedPatch)
-      .joinChannel(alphaMask)
-      .png()
-      .toBuffer();
-
-    const composited = await sharp(preparedGenerated)
-      .composite([{ input: softenedPatch, left, top, blend: "over" }])
-      .png()
-      .toBuffer();
-
-    return `data:image/png;base64,${composited.toString("base64")}`;
-  } catch (error) {
-    console.warn("Logo block lock failed; using original generated image.", error);
-    return generatedImageData;
-  }
-}
-
-/*
 // Remove background using Replicate's BiRefNet model
 async function removeBackground(imageBase64: string): Promise<Buffer> {
   if (!REPLICATE_API_TOKEN) {
     throw new Error("Replicate API token not configured");
   }
 
-  console.log("🔄 Calling BiRefNet via Replicate API...");
+  console.log("ðŸ”„ Calling BiRefNet via Replicate API...");
 
   // BiRefNet model on Replicate - men1scus/birefnet
   // API accepts data URI directly
@@ -2912,7 +2801,7 @@ async function removeBackground(imageBase64: string): Promise<Buffer> {
     throw new Error(`BiRefNet failed: ${result.error}`);
   }
 
-  console.log("✅ BiRefNet completed!");
+  console.log("âœ… BiRefNet completed!");
 
   // result.output is a URL to the PNG with transparent background
   const imageUrl = result.output;
@@ -2970,7 +2859,6 @@ Generate a clean, professional background now.`;
   return null;
 }
 
-*/
 // Composite foreground onto new background
 async function compositeOntoBackground(
   foregroundPng: Buffer,
@@ -3007,7 +2895,8 @@ async function compositeOntoBackground(
 async function generateWithGemini(
   prompt: string,
   originalImage?: string,
-  aspectRatio?: AspectRatio
+  aspectRatio?: AspectRatio,
+  seed?: number
 ): Promise<string | null> {
   if (!GOOGLE_AI_API_KEY) {
     throw new Error("Google AI API key is not configured");
@@ -3045,20 +2934,20 @@ async function generateWithGemini(
       const isUnderstandingBased = prompt.includes("UNDERSTANDING-BASED REDESIGN");
       const isChristmasElevation = prompt.includes("CHRISTMAS POSTER ELEVATION");
       const isKidsElevation = prompt.includes("KIDS POSTER ELEVATION");
-      const isRedesign = prompt.includes("🔧 REDESIGN") || prompt.includes("REDESIGN") || prompt.includes("EVENT POSTER REDESIGN") || isUnderstandingBased;
+      const isRedesign = prompt.includes("ðŸ”§ REDESIGN") || prompt.includes("REDESIGN") || prompt.includes("EVENT POSTER REDESIGN") || isUnderstandingBased;
       const isEventPoster = prompt.includes("EVENT POSTER REDESIGN") || prompt.includes("THIS IS AN EVENT ANNOUNCEMENT POSTER");
 
       // SKETCH-TO-DESIGN: No special wrappers, just use the prompt directly
       if (isSketchToDesign) {
-        console.log("✏️ Sketch-to-Design mode - using prompt directly");
+        console.log("âœï¸ Sketch-to-Design mode - using prompt directly");
         parts.push({ text: prompt });
       }
       // PRODUCT-TO-POSTER: No special wrappers, just use the prompt directly
       else if (isProductToPoster) {
-        console.log("📦 Product-to-Poster mode - using prompt directly");
+        console.log("ðŸ“¦ Product-to-Poster mode - using prompt directly");
         parts.push({ text: prompt });
       }
-      // 🧒 KIDS ELEVATION MODE - Keep 3D cartoon style, DON'T flatten!
+      // ðŸ§’ KIDS ELEVATION MODE - Keep 3D cartoon style, DON'T flatten!
       else if (isKidsElevation) {
         parts.push({
           text: `KIDS POSTER ELEVATION - KEEP THE FUN!
@@ -3090,7 +2979,7 @@ ${prompt}
 `,
         });
       }
-      // 🎄 CHRISTMAS ELEVATION MODE - Keep core element, REMOVE clutter!
+      // ðŸŽ„ CHRISTMAS ELEVATION MODE - Keep core element, REMOVE clutter!
       else if (isChristmasElevation) {
         parts.push({
           text: `CHRISTMAS POSTER ELEVATION
@@ -3109,7 +2998,7 @@ ${prompt}
       } else if (isRedesign && !isKidsElevation) {
         // Skip Understanding-Based wrapper for KIDS - they have their own wrapper
         if (isUnderstandingBased) {
-          // UNDERSTANDING-BASED REDESIGN - Poster-ийн гол санааг ойлгоод хүчирхэгжүүлэх
+          // UNDERSTANDING-BASED REDESIGN - Poster-Ð¸Ð¹Ð½ Ð³Ð¾Ð» ÑÐ°Ð½Ð°Ð°Ð³ Ð¾Ð¹Ð»Ð³Ð¾Ð¾Ð´ Ñ…Ò¯Ñ‡Ð¸Ñ€Ñ…ÑÐ³Ð¶Ò¯Ò¯Ð»ÑÑ…
           parts.push({
             text: `UNDERSTANDING-BASED REDESIGN - Strengthen the core message
 
@@ -3133,11 +3022,11 @@ Design as if you deeply understood the message. Show that message in the stronge
         } else if (isEventPoster) {
           // EVENT POSTER REDESIGN MODE - Preserve person, redesign layout
           parts.push({
-            text: `═══════════════════════════════════════════════════════════════════
-🎪 EVENT POSTER REDESIGN - PRESERVE PERSON, NEW DESIGN!
-═══════════════════════════════════════════════════════════════════
+            text: `â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŽª EVENT POSTER REDESIGN - PRESERVE PERSON, NEW DESIGN!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-⚠️⚠️⚠️ CRITICAL RULES FOR EVENT POSTERS ⚠️⚠️⚠️
+âš ï¸âš ï¸âš ï¸ CRITICAL RULES FOR EVENT POSTERS âš ï¸âš ï¸âš ï¸
 
 1. THE PERSON'S FACE MUST BE 100% IDENTICAL!
    - Same facial features, same expression
@@ -3157,34 +3046,34 @@ Design as if you deeply understood the message. Show that message in the stronge
    - New typography styling
    - New color scheme
 
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 You are looking at this poster to extract:
 - Who is the PERSON? (preserve their face exactly!)
 - What is the EVENT? (title, date, location)
 - What is the BRAND? (logo, organization name)
 
 Then CREATE a fresh professional design!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 YOUR DESIGN INSTRUCTIONS:
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ${prompt}
 
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 THINK OF IT THIS WAY:
 A client showed you their event poster with a speaker photo.
 They said "Keep the speaker's face EXACTLY the same, but create
 a completely NEW professional event poster design."
-═══════════════════════════════════════════════════════════════════`,
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•`,
           });
         } else {
           // GREETING/FLOWER POSTER REDESIGN MODE - Premium Botanical Elevation
           parts.push({
-            text: `═══════════════════════════════════════════════════════════════════
-🌸 PREMIUM BOTANICAL REDESIGN - CREATE FRESH ARTWORK!
-═══════════════════════════════════════════════════════════════════
+            text: `â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+ðŸŒ¸ PREMIUM BOTANICAL REDESIGN - CREATE FRESH ARTWORK!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-🚫🚫🚫 ABSOLUTE RULES - MUST FOLLOW! 🚫🚫🚫
+ðŸš«ðŸš«ðŸš« ABSOLUTE RULES - MUST FOLLOW! ðŸš«ðŸš«ðŸš«
 
 1. THE ORIGINAL PHOTO MUST NOT APPEAR IN YOUR DESIGN!
 2. THE ORIGINAL TEXT STYLING MUST NOT APPEAR IN YOUR DESIGN!
@@ -3197,126 +3086,86 @@ You are looking at this poster ONLY to extract:
 
 Then FORGET everything visual about the original!
 
-═══════════════════════════════════════════════════════════════════
-❌ DO NOT DO THESE THINGS!
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âŒ DO NOT DO THESE THINGS!
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-❌ NO original photo anywhere (not left, not right, not background)
-❌ NO original text styling (the white text on yellow - don't copy it!)
-❌ NO split layouts with the original image
-❌ NO ghosting or watermarks of original content
-❌ The original design should be 0% visible
+âŒ NO original photo anywhere (not left, not right, not background)
+âŒ NO original text styling (the white text on yellow - don't copy it!)
+âŒ NO split layouts with the original image
+âŒ NO ghosting or watermarks of original content
+âŒ The original design should be 0% visible
 
-═══════════════════════════════════════════════════════════════════
-✅ CREATE THIS INSTEAD:
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+âœ… CREATE THIS INSTEAD:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-✅ A NEW realistic botanical illustration of the flower
+âœ… A NEW realistic botanical illustration of the flower
    - Draw it fresh, don't copy the photo
    - Realistic style, like botanical encyclopedia art
    - Beautiful, detailed, professional
 
-✅ NEW typography styling
+âœ… NEW typography styling
    - Elegant serif or script fonts
    - NEW font colors (dark charcoal, brown, forest green)
    - NOT white text - use DARK text on light background
 
-✅ FRESH clean layout
+âœ… FRESH clean layout
    - Light background (cream, white, or soft tint)
    - Centered composition
    - Premium greeting card feel
 
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 YOUR DESIGN INSTRUCTIONS:
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ${prompt}
 
-═══════════════════════════════════════════════════════════════════
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 THINK OF IT THIS WAY:
 A client showed you their poster and said "I love the flower and message,
 but please create a completely NEW premium design from scratch."
 You use their poster as BRIEF only, then create original artwork.
-═══════════════════════════════════════════════════════════════════`,
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•`,
           });
         }
       } else {
         // ARTISTIC STYLE MODE - For good posters that just need style variations
         parts.push({
-          text: `You are an elite poster designer transforming this image.
+          text: `You are an elite poster stylist. Apply STYLE-ONLY enhancement to this poster.
 
-TRANSFORMATION STYLE:
+STYLE DIRECTION:
 ${prompt}
 
-═══════════════════════════════════════════════════
-🔒 SACRED - DO NOT CHANGE:
-═══════════════════════════════════════════════════
+MANDATORY RULES (STYLE MODE):
+1) KEEP LAYOUT EXACTLY
+- Preserve the existing poster layout geometry and structure exactly.
+- Keep all text blocks, visual zones, and relative positions unchanged.
+- Do not move, resize, rotate, crop, mirror, stretch, reorder, or recompose.
+- Preserve the source canvas aspect ratio exactly.
 
-1. FACE IS SACRED
-   - The person's face must be PIXEL-PERFECT IDENTICAL
-   - Same facial features, same expression, same eyes looking same direction
-   - Same skin tone, same glasses if any
-   - If you change the face even 1% - YOU HAVE FAILED
-   - This is non-negotiable. The person must be RECOGNIZABLE.
+2) ALLOWED CHANGES
+- You may change background (texture, color grading, atmosphere).
+- You may change text font styling (typeface, weight, tracking, rendering style), except logo/wordmark.
+- You may add effects (lighting, shadow, glow, grain, texture) to non-logo elements.
+- You may add only subtle supporting visual accents that do NOT create new structural blocks, panels, badges, or layout regions.
 
-2. CORE CONCEPT IS SACRED
-   - The main message/story of the poster stays the same
-   - If it's about "$0 to $29" - that story remains
-   - If it's about transformation - keep that narrative
-   - The MEANING doesn't change, only the PRESENTATION
+3) LOGO SHAPE + WORDMARK LOCK (IDENTITY MUST STAY)
+- Keep logo icon shape and logo wordmark text characters exactly unchanged.
+- Keep logo position, size, orientation, and spacing exactly as source.
+- You may apply subtle non-destructive logo effects only (soft glow, light blend, gentle shadow, fine grain).
+- Never redraw, replace, retype, duplicate, relocate, or distort any logo/brand mark.
 
-3. TEXT CONTENT IS SACRED
-   - All text must say the SAME THING (same meaning)
-   - "$0" stays "$0", "$29" stays "$29"
-   - You can make text MORE BEAUTIFUL, BIGGER, BETTER STYLED
-   - But the WORDS and NUMBERS stay the same
+4) TEXT CONTENT LOCK
+- Keep original text content the same unless user explicitly requested text edits.
 
-4. ICONS & VISUAL ELEMENTS - KEEP AND IMPROVE
-   - If there are social media icons - KEEP THEM, make them prettier
-   - If there are arrows, symbols - KEEP THEM, style them better
-   - Don't remove elements, ELEVATE them
+OUTPUT GOAL:
+Produce the same poster layout with upgraded style only.
 
-═══════════════════════════════════════════════════
-✅ YOU CAN AND SHOULD CHANGE:
-═══════════════════════════════════════════════════
-
-1. CLOTHING - CHANGE IT DRAMATICALLY!
-   - You MUST change the clothing to match the artistic style
-   - Don't keep the original clothes - CREATE NEW OUTFIT!
-   - Examples of clothing changes:
-     * Watercolor style → Soft pastel sweater, flowy fabrics, artistic look
-     * Pencil sketch → Simple white t-shirt, casual hoodie, minimal
-     * Professional → Sharp gray suit, business casual, premium look
-     * Bold/Vibrant → Bright colored jacket, bold patterns, eye-catching
-   - The clothing should look like it BELONGS in the artistic style
-   - Original blue suit can become: sweater, hoodie, t-shirt, different colored suit, casual shirt, etc.
-
-2. BACKGROUND - COMPLETELY NEW
-   - Create a new background that matches the artistic style
-   - Can be completely different from original
-   - Should enhance the poster's message
-
-3. COLORS & LIGHTING
-   - Apply the artistic style's color palette
-   - Better lighting, shadows, highlights
-   - Color grading that fits the mood
-
-4. COMPOSITION & UI
-   - Improve the layout if needed
-   - Better spacing, alignment
-   - More professional arrangement
-   - Fix bad aspect ratios
-
-5. ARTISTIC STYLE
-   - Apply the specified artistic effect fully
-   - Watercolor = soft, flowing, painterly, dreamy colors
-   - Pencil sketch = detailed lines, hand-drawn feel, paper texture
-   - Professional = clean, modern, polished, premium
-   - Bold = high contrast, vibrant, neon accents, eye-catching
-
-═══════════════════════════════════════════════════
-GENERATE THE TRANSFORMED VERSION NOW.
-The person's face MUST be identical. Everything else can be elevated.
-═══════════════════════════════════════════════════`,
+OUTPUT SELF-CHECK (must pass before final image):
+- Same canvas ratio as source.
+- Same layout geometry and block positions.
+- Same logo pixels and logo placement.
+- No new structural containers.`,
         });
       }
     } else {
@@ -3353,6 +3202,7 @@ The person's face MUST be identical. Everything else can be elevated.
             ],
             generationConfig: {
               responseModalities: ["image", "text"],
+              ...(typeof seed === "number" ? { seed } : {}),
             },
           }),
         },
@@ -3377,7 +3227,11 @@ The person's face MUST be identical. Everything else can be elevated.
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = await readResponseJsonWithTimeout<Record<string, unknown>>(
+        response,
+        GEMINI_REQUEST_TIMEOUT_MS,
+        `Gemini ${modelName} error`
+      ).catch(() => ({}));
       console.error(`Gemini Image API error (${modelName}):`, JSON.stringify(errorData));
       const errorMessage = errorData?.error?.message || `Status ${response.status}`;
       const error = new Error(`Gemini 3 API (${modelName}): ${errorMessage}`) as Error & {
@@ -3403,7 +3257,11 @@ The person's face MUST be identical. Everything else can be elevated.
       throw error;
     }
 
-    data = (await response.json()) as typeof data;
+    data = (await readResponseJsonWithTimeout<typeof data>(
+      response,
+      GEMINI_REQUEST_TIMEOUT_MS,
+      `Gemini ${modelName} success`
+    )) as typeof data;
     break;
   }
 
@@ -3480,10 +3338,18 @@ export async function POST(request: NextRequest) {
     }
 
     let originalForGen = originalImage;
+    if (originalForGen) {
+      const detectedSourceAspect = await detectAspectRatioFromSourceImage(originalForGen);
+      if (detectedSourceAspect) {
+        aspectRatio = detectedSourceAspect;
+      }
+    }
 
     // Determine which prompts to use based on mode or direct prompts
     let prompts: string[] = [];
     let variationNames: string[] = [];
+    let promptSeeds: Array<number | undefined> = [];
+    const seedBase = Math.floor(Math.random() * 900000) + 100000;
 
     const referenceMatches =
       analysisResult && typeof analysisResult === "object"
@@ -3501,9 +3367,11 @@ export async function POST(request: NextRequest) {
 
     if (mode === "artistic") {
       // ARTISTIC STYLE MODE - Watercolor, Pencil, Professional, Bold
-      console.log("🎨 ARTISTIC STYLE MODE selected");
+      console.log("ðŸŽ¨ ARTISTIC STYLE MODE selected");
       console.log("   Preserving the poster's soul, enhancing its mood...");
-      const allPrompts = resolveArtisticStyles(artisticStyles, artisticExtra);
+      // Force Style Generate to use only DNA 3 preset.
+      const allPrompts = resolveArtisticStyles(["dnaGradient"], false);
+      const styleVariantCount = 4;
       const optionsBlock = buildArtisticOptionsBlock({
         intensity: artisticIntensity,
         textSafety: effectiveArtisticTextSafety,
@@ -3515,15 +3383,129 @@ export async function POST(request: NextRequest) {
       } else if (artisticExtra) {
         console.log("Extra artistic styles enabled");
       }
-      console.log(`🎚️ Intensity: ${artisticIntensity || "balanced"} | Text: ${effectiveArtisticTextSafety || "strict"} | Color: ${artisticColorFidelity || "preserve"}`);
+      console.log(`Style controls => intensity: ${artisticIntensity || "balanced"}, text: ${effectiveArtisticTextSafety || "strict"}, color: ${artisticColorFidelity || "preserve"}`);
 
-      prompts = allPrompts.map(p => `${p.prompt}\n\n${optionsBlock}${gradientBlock ? `\n\n${gradientBlock}` : ""}${moodboardBlock ? `\n\n${moodboardBlock}` : ""}${referenceBlock ? `\n\n${referenceBlock}` : ""}${inspirationBlock ? `\n\n${inspirationBlock}` : ""}`);
-      variationNames = allPrompts.map(p => p.name);
+      const baseStyle = allPrompts[0];
+      if (!baseStyle) {
+        return NextResponse.json(
+          { error: "Style preset is not available" },
+          { status: 500 }
+        );
+      }
+
+      const stylePresetMap: Record<string, { label: string; prompt: string }> = {
+        clean_corporate: {
+          label: "Clean Corporate",
+          prompt: "DNA-C1: Bright clean corporate look, white-to-blue gradients, restrained geometry, crisp spacing, clear hierarchy.",
+        },
+        premium_dark: {
+          label: "Premium Dark",
+          prompt: "DNA-D1: Deep charcoal/black foundation, premium bronze/gold accents, cinematic contrast, glossy depth.",
+        },
+        bold_typography: {
+          label: "Bold Typography",
+          prompt: "DNA-T1: Headline-first typographic impact, high contrast rhythm, minimal visual distraction.",
+        },
+        gradient_atmosphere: {
+          label: "Gradient Atmosphere",
+          prompt: "DNA-G1: Smooth multi-stop gradients, soft glow transitions, atmospheric depth, modern digital mood.",
+        },
+        photo_duotone: {
+          label: "Photo + Duotone",
+          prompt: "DNA-P1: Contextual photo treatment with controlled duotone overlay and premium campaign readability.",
+        },
+        geometric_abstract: {
+          label: "Geometric Abstract",
+          prompt: "DNA-A1: Abstract geometric forms (rings, arcs, strips, cubes) with clean perspective and balanced energy.",
+        },
+        editorial_minimal: {
+          label: "Editorial Minimal",
+          prompt: "DNA-E1: Minimal palette, elegant spacing, premium editorial clarity, restrained visual language.",
+        },
+        vibrant_promo: {
+          label: "Vibrant Promo",
+          prompt: "DNA-V1: Vivid contrast colors, energetic gradient accents, campaign urgency with clear readability.",
+        },
+        soft_elegant: {
+          label: "Soft Elegant",
+          prompt: "DNA-S1: Soft pastel gradients, delicate light bloom, refined premium tone.",
+        },
+        event_spotlight: {
+          label: "Event Spotlight",
+          prompt: "DNA-ES1: Spotlight key info blocks and CTA path with directional accents and clarity.",
+        },
+      };
+
+      const normalizeStyleKey = (value: string) => value.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+      const styleAliases: Record<string, string> = {
+        clean_corporate: "clean_corporate",
+        premium_dark: "premium_dark",
+        dark_fintech: "premium_dark",
+        bold_typography: "bold_typography",
+        gradient_atmosphere: "gradient_atmosphere",
+        dna_gradient: "gradient_atmosphere",
+        photo_duotone: "photo_duotone",
+        geometric_abstract: "geometric_abstract",
+        editorial_minimal: "editorial_minimal",
+        vibrant_promo: "vibrant_promo",
+        soft_elegant: "soft_elegant",
+        event_spotlight: "event_spotlight",
+      };
+
+      const rankedStyleKeys = [
+        "premium_dark",
+        "gradient_atmosphere",
+        "bold_typography",
+        "clean_corporate",
+        "photo_duotone",
+        "geometric_abstract",
+        "vibrant_promo",
+        "editorial_minimal",
+        "soft_elegant",
+        "event_spotlight",
+      ];
+
+      const selectedStyleKeysRaw = Array.isArray(artisticStyles) && artisticStyles.length > 0
+        ? artisticStyles
+        : rankedStyleKeys.slice(0, styleVariantCount);
+
+      const normalizedSelectedStyleKeys = selectedStyleKeysRaw
+        .map((raw) => {
+          const normalized = normalizeStyleKey(String(raw));
+          return styleAliases[normalized] || normalized;
+        })
+        .filter((key) => Boolean(stylePresetMap[key as keyof typeof stylePresetMap]));
+
+      let styleKeysForGeneration: string[] = [];
+      if (normalizedSelectedStyleKeys.length === 0) {
+        styleKeysForGeneration = rankedStyleKeys.slice(0, styleVariantCount);
+      } else if (normalizedSelectedStyleKeys.length === 1) {
+        styleKeysForGeneration = Array.from({ length: styleVariantCount }, () => normalizedSelectedStyleKeys[0]);
+      } else {
+        styleKeysForGeneration = Array.from(
+          { length: styleVariantCount },
+          (_, i) => normalizedSelectedStyleKeys[i % normalizedSelectedStyleKeys.length]
+        );
+      }
+
+      const promptPack = styleKeysForGeneration.map((key, idx) => {
+        const preset = stylePresetMap[key as keyof typeof stylePresetMap] || stylePresetMap.gradient_atmosphere;
+        const styleAddonBlock = `BOARD STYLE DNA (${preset.label}):\n${preset.prompt}`;
+        const stylePrompt = `${baseStyle.prompt}\n\n${styleAddonBlock}\n\n${optionsBlock}${gradientBlock ? `\n\n${gradientBlock}` : ""}${moodboardBlock ? `\n\n${moodboardBlock}` : ""}${referenceBlock ? `\n\n${referenceBlock}` : ""}${inspirationBlock ? `\n\n${inspirationBlock}` : ""}`;
+        return {
+          prompt: stylePrompt,
+          name: `${preset.label} ${idx + 1}`,
+        };
+      });
+
+      prompts = promptPack.map((item) => item.prompt);
+      variationNames = promptPack.map((item) => item.name);
+      promptSeeds = Array.from({ length: styleVariantCount }, (_, i) => seedBase + i);
     } else if (mode === "redesign") {
-      // REDESIGN MODE - UNDERSTANDING-BASED: Poster-ийн гол санааг ойлгоод хүчирхэгжүүлэх
-      console.log("═══════════════════════════════════════════════════════════════════");
-      console.log("🧠 UNDERSTANDING-BASED REDESIGN MODE");
-      console.log("═══════════════════════════════════════════════════════════════════");
+      // REDESIGN MODE - UNDERSTANDING-BASED: Poster-Ð¸Ð¹Ð½ Ð³Ð¾Ð» ÑÐ°Ð½Ð°Ð°Ð³ Ð¾Ð¹Ð»Ð³Ð¾Ð¾Ð´ Ñ…Ò¯Ñ‡Ð¸Ñ€Ñ…ÑÐ³Ð¶Ò¯Ò¯Ð»ÑÑ…
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+      console.log("ðŸ§  UNDERSTANDING-BASED REDESIGN MODE");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
       console.log("?? Strengthening the poster's core message...");
 
       // Generate prompts based on understanding the poster's core message
@@ -3531,13 +3513,13 @@ export async function POST(request: NextRequest) {
       const presetRules = redesignPreset ? REDESIGN_PRESET_RULES[redesignPreset] : "";
 
       if (redesignPreset && presetRules) {
-        console.log(`🎛️ Redesign preset: ${redesignPreset}`);
+        console.log(`ðŸŽ›ï¸ Redesign preset: ${redesignPreset}`);
       }
 
-      console.log("═══════════════════════════════════════════════════════════════════");
-      console.log("🎯 Creating 4 understanding-based variations:");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+      console.log("ðŸŽ¯ Creating 4 understanding-based variations:");
       understandingPrompts.forEach((p, i) => console.log(`   ${i + 1}. ${p.name}`));
-      console.log("═══════════════════════════════════════════════════════════════════");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
 
       // Log what we understood from the analysis
       const analysisDebug = analysisResult as {
@@ -3558,7 +3540,7 @@ export async function POST(request: NextRequest) {
       if (coreFeeling) {
         console.log(`?? Core Feeling: ${coreFeeling}`);
       }
-      console.log("═══════════════════════════════════════════════════════════════════");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
 
       prompts = understandingPrompts.map(p => {
         const basePrompt = presetRules ? `${p.prompt}\n\n${presetRules}` : p.prompt;
@@ -3567,13 +3549,13 @@ export async function POST(request: NextRequest) {
       variationNames = understandingPrompts.map(p => p.name);
     } else if (mode === "sketch-to-design") {
       // SKETCH-TO-DESIGN MODE - Generate professional design from hand-drawn sketch
-      console.log("═══════════════════════════════════════════════════════════════════");
-      console.log("✏️ SKETCH-TO-DESIGN MODE");
-      console.log("═══════════════════════════════════════════════════════════════════");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+      console.log("âœï¸ SKETCH-TO-DESIGN MODE");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
 
-      console.log(`📝 Headline: ${sketchInputs?.headline || 'N/A'}`);
-      console.log(`🎨 Style: ${sketchStyle || 'minimal'}`);
-      console.log(`🏷️ Category: ${sketchCategory || 'product'}`);
+      console.log(`ðŸ“ Headline: ${sketchInputs?.headline || 'N/A'}`);
+      console.log(`ðŸŽ¨ Style: ${sketchStyle || 'minimal'}`);
+      console.log(`ðŸ·ï¸ Category: ${sketchCategory || 'product'}`);
 
       // Generate sketch-to-design prompts
       const sketchPrompts = generateSketchToDesignPrompts(sketchInputs, sketchStyle, sketchCategory, sketchLayout);
@@ -3581,22 +3563,22 @@ export async function POST(request: NextRequest) {
       prompts = sketchPrompts.map(p => p.prompt);
       variationNames = sketchPrompts.map(p => p.name);
 
-      console.log("🎯 Creating 4 design variations from sketch:");
+      console.log("ðŸŽ¯ Creating 4 design variations from sketch:");
       variationNames.forEach((name, i) => console.log(`   ${i + 1}. ${name}`));
-      console.log("═══════════════════════════════════════════════════════════════════");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
     } else if (mode === "product-to-poster") {
       // PRODUCT-TO-POSTER MODE - Generate marketing poster from product photo
-      console.log("═══════════════════════════════════════════════════════════════════");
-      console.log("📦 PRODUCT-TO-POSTER MODE");
-      console.log("═══════════════════════════════════════════════════════════════════");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
+      console.log("ðŸ“¦ PRODUCT-TO-POSTER MODE");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
 
-      console.log(`📝 Headline: ${productInputs?.headline || 'N/A'}`);
-      console.log(`🎯 Campaign: ${productCampaign || 'awareness'}`);
-      console.log(`🎨 Style: ${productStyle || 'premium'}`);
+      console.log(`ðŸ“ Headline: ${productInputs?.headline || 'N/A'}`);
+      console.log(`ðŸŽ¯ Campaign: ${productCampaign || 'awareness'}`);
+      console.log(`ðŸŽ¨ Style: ${productStyle || 'premium'}`);
       if (productInfo) {
-        console.log(`📦 Product: ${productInfo.product_type}`);
-        console.log(`👤 Target: ${productInfo.target_demographic.age_range} / ${productInfo.target_demographic.gender}`);
-        console.log(`💎 Tier: ${productInfo.price_positioning}`);
+        console.log(`ðŸ“¦ Product: ${productInfo.product_type}`);
+        console.log(`ðŸ‘¤ Target: ${productInfo.target_demographic.age_range} / ${productInfo.target_demographic.gender}`);
+        console.log(`ðŸ’Ž Tier: ${productInfo.price_positioning}`);
       }
 
       // Generate product-to-poster prompts
@@ -3605,9 +3587,9 @@ export async function POST(request: NextRequest) {
       prompts = productPrompts.map(p => p.prompt);
       variationNames = productPrompts.map(p => p.name);
 
-      console.log("🎯 Creating 4 poster variations from product:");
+      console.log("ðŸŽ¯ Creating 4 poster variations from product:");
       variationNames.forEach((name, i) => console.log(`   ${i + 1}. ${name}`));
-      console.log("═══════════════════════════════════════════════════════════════════");
+      console.log("â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
     } else if (inputPrompts && inputPrompts.length > 0) {
       // Direct prompts (backwards compatibility)
       prompts = inputPrompts;
@@ -3619,20 +3601,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (promptSeeds.length !== prompts.length) {
+      promptSeeds = prompts.map(() => undefined);
+    }
+
     const coreRulesFile = pickCoreRulesPrompt(DEFAULT_CORE_RULES);
     const coreRules = loadPromptFile(coreRulesFile);
     const coreRulesText = coreRules.content;
-    const layoutLockBlock = `\n\nLAYOUT LOCK (MANDATORY):\n- Preserve the existing poster layout geometry and structure exactly.\n- Keep all existing text blocks, visual zones, and relative positions unchanged.\n- Do NOT move, resize, rotate, crop, mirror, stretch, or reorder blocks/sections.\n- You may only apply non-geometric visual updates:\n  - background texture / color grading / atmosphere\n  - text typography updates (typeface, tracking, weight, weight-driven style)\n  - visual style updates to existing elements (texture, shading, lighting, surface feel)\n  - content edits are optional only when explicitly requested by the user.\n- Keep hierarchy and spacing rhythm intact.\n- Treat the poster as the same layout shell with refreshed styling.`;
-    const brandPreservationBlock = brandHint
-      ? `\n\nSOURCE LOGO PRESERVATION:\n- A logo appears to be present (${brandHint}). Preserve its exact icon, wordmark text, font, proportions, geometry, and vertical/horizontal orientation.\n- Keep logo position and size fixed exactly as in source (no X/Y movement).\n- Do NOT move, rotate, mirror, flip, stretch, crop, resize, redraw, replace, retype, reinterpret, or reflow the logo/wordmark.\n- Keep icon/wordmark letterforms, spacing, and wordmark text unchanged as one unit.\n- You may apply only non-geometric effects to the logo surface (lighting, texture, or color style) without changing its shape, size, or position.\n- Do NOT add any new brand marks/icons other than the original logo block.\n- Do NOT duplicate the logo/wordmark or place additional logo copies.\n- Do NOT generate a second logo in a different location.`
-      : "\n\nSOURCE LOGO PRESERVATION:\n- If any logo or wordmark is present, preserve its exact icon, wordmark text, font, proportions, geometry, and vertical/horizontal orientation.\n- Keep logo position and size fixed exactly as in source (no X/Y movement).\n- Do NOT move, rotate, mirror, flip, stretch, crop, resize, redraw, replace, retype, reinterpret, or reflow the logo/wordmark.\n- Keep icon/wordmark letterforms, spacing, and wordmark text unchanged as one unit.\n- You may apply only non-geometric effects to the logo surface (lighting, texture, or color style) without changing its shape, size, or position.\n- Do NOT add any new logos/brand marks.\n- Do NOT duplicate the logo/wordmark or place additional logo copies.\n- Do NOT generate a second logo in a different location.\n- If no logo is visible, this section can be ignored;";
-    const logoPixelLockBlock = `\n\nLOGO PIXEL-LOCK (HIGHEST PRIORITY):\n- Treat the source logo block (icon + wordmark) as immutable content.\n- Keep icon silhouette, inner geometry, and all letterforms exactly unchanged.\n- Preserve logo text exactly as in source; do NOT rewrite, regenerate, or reinterpret any character.\n- Preserve original logo arrangement/orientation exactly (vertical stays vertical, horizontal stays horizontal).\n- Preserve logo block location and size exactly (no movement or rescaling).\n- Keep exactly one logo block; do NOT add, duplicate, or relocate a second logo.\n- Allowed edits: only non-geometric surface effects (color tint, lighting, texture, shadow).\n- Forbidden edits: move, reshape, redraw, crop, stretch, rotate, mirror, warp, perspective, resize, retype, reflow, replacement, or icon substitution.\n- If uncertain, keep the logo area unchanged from source and style around it.`;
-    const exactWordmarkLockBlock = exactBrandWordmark
-      ? `\n- EXACT WORDMARK TEXT LOCK: keep "${exactBrandWordmark}" exactly unchanged (same letters, same order, same case).`
-      : "";
+    const styleModePromptBlock = `\n\nSTYLE MODE CONSTRAINTS (HIGHEST PRIORITY):\n- Use the source poster as strict composition reference.\n- Preserve the existing poster layout geometry and structure exactly.\n- Keep all text blocks, visual zones, and relative positions unchanged.\n- Do NOT move, resize, rotate, crop, mirror, stretch, or reorder blocks/sections.\n- Preserve source canvas aspect ratio exactly.\n- Full-bleed output only: no outer padding, no inset frame, no visible border.\n- Background must reach all four canvas edges.\n- Keep text content unchanged unless explicitly requested.\n- Allowed edits only: background styling, typography styling, and relevant visual elements/effects.\n- Do NOT add structural containers/panels/badges/geometric overlays.\n- Keep the source logo icon shape and exact logo wordmark text unchanged (no redraw, no rewrite, no replacement, no missing/extra letters).\n- Subtle logo effects are allowed (glow/shadow/blend/texture), but icon geometry and wordmark characters must remain identical and readable.\n- Do NOT replace, duplicate, or relocate the brand mark.\n- Keep logo size, orientation, and position unchanged.`;
+    const redesignModePromptBlock = `\n\nREDESIGN MODE CONSTRAINTS (HIGHEST PRIORITY):\n- You may redesign composition and layout (new arrangement is allowed).\n- Preserve core message and key content hierarchy from the prompt.\n- Preserve brand identity: keep logo icon + wordmark text exact (no rewrite/redraw/replacement).\n- Do NOT duplicate or relocate brand marks inconsistently.\n- Aspect ratio must remain as requested/source policy.\n- Full-bleed output only: no outer padding, no inset frame, no visible border.\n- Background must reach all four canvas edges.\n- Avoid contradictory instructions: if a redesign instruction conflicts with style-lock rules, redesign instruction wins in this mode.`;
+    const modePromptBlock =
+      mode === "artistic"
+        ? styleModePromptBlock
+        : mode === "redesign"
+          ? redesignModePromptBlock
+          : "";
 
-    // Prepend core rules so they have maximum weight in the prompt.
-    prompts = prompts.map(prompt => `${coreRulesText}\n\n${layoutLockBlock}${brandPreservationBlock}${logoPixelLockBlock}${exactWordmarkLockBlock}\n\n${prompt}`);
+    // Prepend core rules + mode-specific rules so they have maximum weight.
+    prompts = prompts.map(prompt => `${coreRulesText}${modePromptBlock}\n\n${prompt}`);
 
     logEvent({
       id: crypto.randomUUID(),
@@ -3676,8 +3662,8 @@ export async function POST(request: NextRequest) {
     // BACKGROUND-ONLY MODE: Extract foreground once, generate backgrounds, composite
     // This guarantees 100% preservation of person, text, and icons
     if (originalImage && preserveMode === "background-only" && provider === "nano") {
-      console.log(`🎨 BACKGROUND-ONLY MODE: Preserving ALL foreground elements (person, text, icons)`);
-      console.log(`📸 Extracting foreground from original image...`);
+      console.log(`ðŸŽ¨ BACKGROUND-ONLY MODE: Preserving ALL foreground elements (person, text, icons)`);
+      console.log(`ðŸ“¸ Extracting foreground from original image...`);
 
       // Get original image dimensions
       const base64Match = originalImage.match(/^data:(.+);base64,(.+)$/);
@@ -3688,17 +3674,17 @@ export async function POST(request: NextRequest) {
       const originalMetadata = await sharp(originalBuffer).metadata();
       const origWidth = originalMetadata.width || 1280;
       const origHeight = originalMetadata.height || 720;
-      console.log(`📐 Original dimensions: ${origWidth}x${origHeight}`);
+      console.log(`ðŸ“ Original dimensions: ${origWidth}x${origHeight}`);
 
       // Extract foreground (person + text + icons) - only do this ONCE
       let foregroundPng: Buffer;
       try {
         foregroundPng = await removeBackground(originalImage);
-        console.log(`✅ Foreground extracted successfully!`);
+        console.log(`âœ… Foreground extracted successfully!`);
       } catch (err) {
-        console.error(`❌ Background removal failed:`, err);
+        console.error(`âŒ Background removal failed:`, err);
         // Fallback to image-to-image mode
-        console.log(`⚠️ Falling back to image-to-image mode...`);
+        console.log(`âš ï¸ Falling back to image-to-image mode...`);
         // Continue below with regular mode
         foregroundPng = null as unknown as Buffer;
       }
@@ -3707,22 +3693,22 @@ export async function POST(request: NextRequest) {
         // Generate backgrounds and composite
         const generateWithComposite = async (prompt: string, index: number): Promise<GeneratedImage | null> => {
           try {
-            console.log(`🖼️ Generating background ${index}...`);
+            console.log(`ðŸ–¼ï¸ Generating background ${index}...`);
             const backgroundImage = await generateBackgroundOnly(prompt, origWidth, origHeight);
             if (!backgroundImage) {
-              console.error(`❌ Background generation failed for ${index}`);
+              console.error(`âŒ Background generation failed for ${index}`);
               return null;
             }
-            console.log(`✅ Background ${index} generated!`);
+            console.log(`âœ… Background ${index} generated!`);
 
-            console.log(`🔧 Compositing foreground onto background ${index}...`);
+            console.log(`ðŸ”§ Compositing foreground onto background ${index}...`);
             let finalImage = await compositeOntoBackground(foregroundPng, backgroundImage, origWidth, origHeight);
             finalImage = await normalizeAspectRatio(finalImage, aspectRatio);
-            console.log(`✅ Image ${index} complete! 100% original elements preserved.`);
+            console.log(`âœ… Image ${index} complete! 100% original elements preserved.`);
 
             return { index, imageData: finalImage, prompt, provider: "gemini-composite" };
           } catch (err) {
-            console.error(`❌ Error in composite generation ${index}:`, err);
+            console.error(`âŒ Error in composite generation ${index}:`, err);
             return null;
           }
         };
@@ -3761,7 +3747,7 @@ export async function POST(request: NextRequest) {
             const savedPath = saveImageToDisk(img.imageData, varName, img.index);
             if (savedPath) savedPaths.push(savedPath);
           }
-          console.log(`💾 Auto-saved ${savedPaths.length} images to: ${SAVE_FOLDER}`);
+          console.log(`ðŸ’¾ Auto-saved ${savedPaths.length} images to: ${SAVE_FOLDER}`);
         }
 
         // Add variation names to the response
@@ -3790,8 +3776,11 @@ export async function POST(request: NextRequest) {
     // Regular mode (image-to-image or text-to-image)
     const generationType = originalImage ? "IMAGE-TO-IMAGE (seeing original)" : "TEXT-TO-IMAGE";
     const preserveSourceAspect = Boolean(originalForGen);
-    const shouldValidateLogo = provider === "nano" && Boolean(originalForGen);
-    const shouldLockSourceLogoBlock = provider === "nano" && Boolean(originalForGen && brandHint);
+    const enforceFinalAspect = async (imageData: string) =>
+      preserveSourceAspect && originalForGen
+        ? normalizeToSourceAspect(imageData, originalForGen)
+        : normalizeAspectRatio(imageData, aspectRatio);
+    const generationDeadline = Date.now() + GENERATE_TOTAL_TIMEOUT_MS;
     console.log(
       `Generating ${prompts.length} images with ${provider}, type: ${generationType}, mode: ${
         mode || "custom"
@@ -3805,88 +3794,26 @@ export async function POST(request: NextRequest) {
           // Always send original image for IMAGE-TO-IMAGE elevation
           // We want Gemini to SEE the original and IMPROVE it, not create from scratch
           console.log(`Generating image ${index} with Gemini 3 Pro Image / Nano Banana PRO (${generationType})...`);
-          const logoRetryLimit = shouldValidateLogo ? 4 : 2;
-          let attemptsUsed = 0;
-          let logoVerified = !shouldValidateLogo;
-          for (let attempt = 1; attempt <= logoRetryLimit; attempt++) {
-            attemptsUsed = attempt;
-            try {
-              const retryConstraint =
-                attempt > 1 && brandHint
-                  ? "\n\nRETRY HARD CONSTRAINT:\n- Previous attempt changed the logo/wordmark.\n- Keep the logo icon geometry and wordmark text exactly identical to the source.\n- Preserve logo arrangement/orientation exactly (vertical stays vertical, horizontal stays horizontal).\n- Keep logo position and size exactly unchanged (no movement).\n- Do not change any letters, spacing rhythm, or icon silhouette.\n- If uncertain, leave the logo area unchanged and style only the non-logo regions."
-                  : "";
-              const effectiveAspectForPrompt = preserveSourceAspect ? undefined : aspectRatio;
-              let imageData = await generateWithGemini(`${prompt}${retryConstraint}`, originalForGen, effectiveAspectForPrompt);
-              if (!imageData) continue;
-              imageData = preserveSourceAspect && originalForGen
-                ? await normalizeToSourceAspect(imageData, originalForGen)
-                : await normalizeAspectRatio(imageData, aspectRatio);
-              if (shouldLockSourceLogoBlock && originalForGen) {
-                imageData = await lockSourceLogoBlock(originalForGen, imageData);
-              }
-
-              if (shouldValidateLogo && originalForGen) {
-                const logoOk = await verifyLogoIdentityWithGemini(originalForGen, imageData, brandHint);
-                logoVerified = logoOk;
-                if (!logoOk) {
-                  console.warn(
-                    `Logo identity check failed for image ${index}, attempt ${attempt}/${logoRetryLimit}.`
-                  );
-                  if (attempt < logoRetryLimit) {
-                    const waitMs = computeRetryDelayMs(attempt);
-                    console.warn(
-                      `Logo mismatch detected. Waiting ${waitMs}ms before retrying image ${index}...`
-                    );
-                    await sleep(waitMs);
-                    continue;
-                  }
-                  throw new Error(
-                    `Logo identity validation failed after ${logoRetryLimit} attempts for image ${index}.`
-                  );
-                }
-              }
-
-              console.log(`Successfully generated image ${index} with Gemini 3 Pro Image`);
-              return {
-                index,
-                imageData,
-                prompt,
-                provider: "gemini-3-pro",
-                logoVerified,
-                logoValidationAttempts: attemptsUsed,
-              };
-            } catch (attemptErr) {
-              const attemptMessage = attemptErr instanceof Error ? attemptErr.message : "Unknown attempt error";
-              const retryAfterMs =
-                typeof attemptErr === "object" &&
-                attemptErr !== null &&
-                "retryAfterMs" in attemptErr &&
-                typeof (attemptErr as { retryAfterMs?: unknown }).retryAfterMs === "number"
-                  ? (attemptErr as { retryAfterMs: number }).retryAfterMs
-                  : extractRetryDelayMs(attemptMessage);
-              const statusCode =
-                typeof attemptErr === "object" &&
-                attemptErr !== null &&
-                "statusCode" in attemptErr &&
-                typeof (attemptErr as { statusCode?: unknown }).statusCode === "number"
-                  ? (attemptErr as { statusCode: number }).statusCode
-                  : undefined;
-              const hardQuota = isHardQuotaError(attemptMessage);
-              const transientError = isTransientGeminiError(attemptMessage, statusCode) || Boolean(retryAfterMs);
-              console.warn(`Gemini attempt ${attempt}/${logoRetryLimit} failed for image ${index}: ${attemptMessage}`);
-              if (hardQuota) {
-                throw attemptErr;
-              }
-              if (transientError && attempt < logoRetryLimit) {
-                const waitMs = computeRetryDelayMs(attempt, retryAfterMs);
-                console.warn(`Gemini rate limit hit. Waiting ${waitMs}ms before retrying image ${index}...`);
-                await sleep(waitMs);
-                continue;
-              }
-              if (attempt < logoRetryLimit && transientError) continue;
-              throw attemptErr;
-            }
+          const effectiveAspectForPrompt = preserveSourceAspect ? undefined : aspectRatio;
+          let imageData = await generateWithGemini(
+            prompt,
+            originalForGen,
+            effectiveAspectForPrompt,
+            promptSeeds[index]
+          );
+          if (!imageData) {
+            throw new Error(`Gemini returned no image payload for image ${index}.`);
           }
+          imageData = await enforceFinalAspect(imageData);
+          console.log(`Successfully generated image ${index} with Gemini 3 Pro Image`);
+          return {
+            index,
+            imageData,
+            prompt,
+            provider: "gemini-3-pro",
+            logoVerified: true,
+            logoValidationAttempts: 1,
+          };
         } else {
           console.log(`Generating image ${index} with FLUX.1-dev...`);
           const response = await fetch(HF_INFERENCE_URL, {
@@ -3920,7 +3847,7 @@ export async function POST(request: NextRequest) {
           const base64 = Buffer.from(imageBuffer).toString("base64");
           const contentType = response.headers.get("content-type") || "image/png";
           let imageData = `data:${contentType};base64,${base64}`;
-          imageData = await normalizeAspectRatio(imageData, aspectRatio);
+          imageData = await enforceFinalAspect(imageData);
           console.log(`Successfully generated image ${index} with FLUX`);
           return { index, imageData, prompt, provider: "flux", logoVerified: true, logoValidationAttempts: 0 };
         }
@@ -3933,8 +3860,8 @@ export async function POST(request: NextRequest) {
     };
 
     let generatedImages: GeneratedImage[] = [];
-    const useParallelGeneration = parallel && prompts.length > 1 && provider !== "nano";
-    const generationDeadline = Date.now() + GENERATE_TOTAL_TIMEOUT_MS;
+    const generationErrors: string[] = [];
+    const useParallelGeneration = parallel && prompts.length > 1;
 
     if (useParallelGeneration) {
       // Parallel generation using Promise.allSettled
@@ -3960,6 +3887,15 @@ export async function POST(request: NextRequest) {
       results.forEach((result, index) => {
         if (result.status === "rejected") {
           console.error(`Image ${index} failed:`, result.reason);
+          const reason =
+            result.reason instanceof Error
+              ? result.reason.message
+              : typeof result.reason === "string"
+                ? result.reason
+                : "Unknown parallel generation error";
+          generationErrors.push(`Image ${index + 1}: ${reason}`);
+        } else if (result.value === null) {
+          generationErrors.push(`Image ${index + 1}: generator returned null image`);
         }
       });
     } else {
@@ -3985,6 +3921,7 @@ export async function POST(request: NextRequest) {
           }
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : "Unknown error";
+          generationErrors.push(`Image ${i + 1}: ${errorMessage}`);
           if (prompts.length === 1) {
             return NextResponse.json(
               { error: "Image generation failed", details: errorMessage },
@@ -4000,8 +3937,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (generatedImages.length === 0) {
+      const details =
+        generationErrors.length > 0
+          ? `No images were generated. ${generationErrors.slice(0, 4).join(" | ")}`
+          : "No images were generated";
       return NextResponse.json(
-        { error: "Image generation failed", details: "No images were generated" },
+        { error: "Image generation failed", details },
         { status: 500 }
       );
     }
@@ -4014,7 +3955,7 @@ export async function POST(request: NextRequest) {
         const savedPath = saveImageToDisk(img.imageData, varName, img.index);
         if (savedPath) savedPaths.push(savedPath);
       }
-      console.log(`💾 Auto-saved ${savedPaths.length} images to: ${SAVE_FOLDER}`);
+      console.log(`ðŸ’¾ Auto-saved ${savedPaths.length} images to: ${SAVE_FOLDER}`);
     }
 
     // Add variation names to the response
@@ -4046,6 +3987,12 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
+
+
+
+
 
 
 
