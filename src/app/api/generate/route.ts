@@ -1,40 +1,14 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import sharp from "sharp";
-import fs from "fs";
-import path from "path";
 import { rateLimit } from "@/lib/rate-limit";
 import { logEvent } from "@/lib/telemetry";
 import { extractCodeBlocks, loadPromptFile } from "@/lib/prompt-loader";
 import { pickCoreRulesPrompt } from "@/lib/prompt-policy";
 import { buildReferenceCueBlock, findReferenceMatches } from "@/lib/reference-matcher";
+import { saveGeneratedImages } from "@/lib/save-image";
 
-// Folder to save generated images
-const SAVE_FOLDER = path.join(process.cwd(), "generated-images");
-const SAVE_GENERATED_IMAGES = process.env.SAVE_GENERATED_IMAGES === "true";
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
-
-// Save image to disk and return the file path
-function saveImageToDisk(imageData: string, variationName: string, index: number): string {
-  if (!SAVE_GENERATED_IMAGES) return "";
-  if (!fs.existsSync(SAVE_FOLDER)) {
-    fs.mkdirSync(SAVE_FOLDER, { recursive: true });
-  }
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const safeName = variationName.replace(/[^a-zA-Z0-9-_ ]/g, "").slice(0, 30);
-  const filename = `${timestamp}_${index}_${safeName}.png`;
-  const filePath = path.join(SAVE_FOLDER, filename);
-
-  // Extract base64 data and save
-  const base64Match = imageData.match(/^data:(.+);base64,(.+)$/);
-  if (base64Match) {
-    const buffer = Buffer.from(base64Match[2], "base64");
-    fs.writeFileSync(filePath, buffer);
-    console.log(`ðŸ’¾ Saved: ${filename}`);
-    return filePath;
-  }
-  return "";
-}
 
 // Increase timeout for image generation
 export const maxDuration = 60;
@@ -3744,15 +3718,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Auto-save generated images to disk with proper variation names
-        const savedPaths: string[] = [];
-        if (SAVE_GENERATED_IMAGES) {
-          for (const img of generatedImages) {
-            const varName = variationNames[img.index] || `Variation ${img.index + 1}`;
-            const savedPath = saveImageToDisk(img.imageData, varName, img.index);
-            if (savedPath) savedPaths.push(savedPath);
-          }
-          console.log(`ðŸ’¾ Auto-saved ${savedPaths.length} images to: ${SAVE_FOLDER}`);
-        }
+        const savedPaths = saveGeneratedImages(generatedImages, variationNames);
 
         // Add variation names to the response
         const imagesWithNames = generatedImages.map(img => ({
@@ -3952,15 +3918,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-save generated images to disk with proper variation names
-    const savedPaths: string[] = [];
-    if (SAVE_GENERATED_IMAGES) {
-      for (const img of generatedImages) {
-        const varName = variationNames[img.index] || `Variation ${img.index + 1}`;
-        const savedPath = saveImageToDisk(img.imageData, varName, img.index);
-        if (savedPath) savedPaths.push(savedPath);
-      }
-      console.log(`ðŸ’¾ Auto-saved ${savedPaths.length} images to: ${SAVE_FOLDER}`);
-    }
+    const savedPaths = saveGeneratedImages(generatedImages, variationNames);
 
     // Add variation names to the response
     const imagesWithNames = generatedImages.map(img => ({

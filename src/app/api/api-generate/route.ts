@@ -6,6 +6,7 @@ import { loadPromptFile } from "@/lib/prompt-loader";
 import { pickCoreRulesPrompt } from "@/lib/prompt-policy";
 import { getStylePromptGuidance } from "@/lib/design-system";
 import { matchDesignerToProject, enhancePromptWithDesignerStyle } from "@/lib/designer-masters";
+import { saveGeneratedImages } from "@/lib/save-image";
 
 export const maxDuration = 60;
 
@@ -547,13 +548,19 @@ export async function POST(request: NextRequest) {
       `✅ api-generate: ${images.length}/${count} images generated successfully`,
     );
 
-    // 8. Return
+    // 8. Save generated images to disk
+    const savedPaths = saveGeneratedImages(
+      images.map((img) => ({ imageData: img.url, index: img.index, name: img.name })),
+    );
+
+    // 9. Return
     return NextResponse.json(
       {
         images,
         count: images.length,
         aspectRatio,
         requestId,
+        savedPaths,
       },
       { status: 200, headers: CORS_HEADERS },
     );
