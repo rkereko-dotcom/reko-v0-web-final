@@ -27,6 +27,7 @@ model Profile {
   quotaResetAt DateTime @default(now()) @map("quota_reset_at")
 
   generatedImages GeneratedImage[]
+  paymentLogs     PaymentLog[]
 
   @@map("profiles")
 }
@@ -44,6 +45,19 @@ model GeneratedImage {
   profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("generated_images")
+}
+
+model PaymentLog {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid @map("user_id")
+  action    String   // "upgrade" | "renew"
+  prevTier  String   @map("prev_tier")
+  newTier   String   @map("new_tier")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payment_logs")
 }
 
 model SiteSettings {

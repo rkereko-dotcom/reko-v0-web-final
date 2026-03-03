@@ -27,6 +27,16 @@ export async function POST(
   const body = await request.json().catch(() => ({}));
   const shouldUpgrade = body.upgrade === true;
 
+  const targetProfile = await prisma.profile.findUnique({
+    where: { id },
+  });
+
+  if (!targetProfile) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  const prevTier = targetProfile.tier;
+
   const updateData: { quotaResetAt: Date; tier?: "premium" } = {
     quotaResetAt: new Date(),
   };
@@ -37,6 +47,15 @@ export async function POST(
   const profile = await prisma.profile.update({
     where: { id },
     data: updateData,
+  });
+
+  await prisma.paymentLog.create({
+    data: {
+      userId: id,
+      action: shouldUpgrade ? "upgrade" : "renew",
+      prevTier: prevTier,
+      newTier: profile.tier,
+    },
   });
 
   return NextResponse.json({
