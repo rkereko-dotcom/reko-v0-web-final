@@ -22,8 +22,9 @@ model Profile {
   email     String?
   role      UserRole @default(client)
   tier      UserTier @default(free)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+  quotaResetAt DateTime @default(now()) @map("quota_reset_at")
 
   generatedImages GeneratedImage[]
 
@@ -43,4 +44,16 @@ model GeneratedImage {
   profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("generated_images")
+}
+
+model SiteSettings {
+  id                  String   @id @default("default")
+  siteName            String   @default("Reko") @map("site_name")
+  tabTitle            String   @default("Reko - AI Poster Generator") @map("tab_title")
+  freeGenerationLimit Int      @default(5) @map("free_generation_limit")
+  paidGenerationLimit Int      @default(50) @map("paid_generation_limit")
+  premiumMonthlyPrice Int      @default(29900) @map("premium_monthly_price")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
 }

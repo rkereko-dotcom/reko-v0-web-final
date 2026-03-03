@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSiteName } from "@/components/providers/site-settings-provider";
 
 const navLinks = [
   "Product",
@@ -32,6 +33,7 @@ const heroTiles = [
 ];
 
 export default function LandingPage() {
+  const siteName = useSiteName();
   const [shuffledTiles] = useState(() => {
     const next = [...heroTiles];
     for (let i = next.length - 1; i > 0; i -= 1) {
@@ -199,9 +201,9 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-[1280px] items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-white text-black">
-              <span className="text-xs font-semibold">R</span>
+              <span className="text-xs font-semibold">{siteName[0]}</span>
             </div>
-            <span className="text-sm font-semibold tracking-tight text-white">Reko</span>
+            <span className="text-sm font-semibold tracking-tight text-white">{siteName}</span>
           </div>
           <nav className="hidden items-center gap-6 text-[12px] font-medium text-white/60 lg:flex">
             {navLinks.map((label) => (

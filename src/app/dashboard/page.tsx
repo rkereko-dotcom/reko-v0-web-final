@@ -1,13 +1,25 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useSiteName } from "@/components/providers/site-settings-provider";
+import { QRCodeSVG } from "qrcode.react";
 
 export default function DashboardPage() {
   const { user, profile, loading, signOut } = useAuth();
+  const siteName = useSiteName();
   const router = useRouter();
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [settings, setSettings] = useState<{ premiumMonthlyPrice: number; paidGenerationLimit: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings/upgrade-info")
+      .then((res) => res.json())
+      .then((data) => setSettings(data))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -24,7 +36,7 @@ export default function DashboardPage() {
     return (
       <main className="relative z-10 flex-1 px-6 pb-16 pt-8">
         <div className="mx-auto max-w-6xl flex items-center justify-center min-h-[50vh]">
-          <p className="text-zinc-500 text-sm">Ачааллаж байна...</p>
+          <p className="text-zinc-500 text-sm">Ачаалж байна...</p>
         </div>
       </main>
     );
@@ -38,7 +50,7 @@ export default function DashboardPage() {
             <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">
               {user?.email} ({profile?.tier === "premium" ? "Premium" : "Free"})
             </p>
-            <h1 className="text-3xl md:text-4xl font-semibold text-white font-[var(--font-display)] tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-semibold text-white tracking-tight">
               User dashboard
             </h1>
           </div>
@@ -58,7 +70,10 @@ export default function DashboardPage() {
               Go to Studio
             </Link>
             {profile?.tier === "free" && (
-              <button className="rounded-full bg-[#bde7ff] px-4 py-2 text-sm font-semibold text-black shadow-[0_12px_30px_-20px_rgba(140,215,255,0.6)]">
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                className="rounded-full bg-[#bde7ff] px-4 py-2 text-sm font-semibold text-black shadow-[0_12px_30px_-20px_rgba(140,215,255,0.6)]"
+              >
                 Upgrade plan
               </button>
             )}
@@ -206,7 +221,7 @@ export default function DashboardPage() {
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
             <h2 className="text-white font-semibold">Brand kit</h2>
             <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">
-              Active: Reko Studio (Fonts, colors, logo)
+              Active: {siteName} Studio (Fonts, colors, logo)
             </div>
             <button className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-white/15">
               Manage brand kits
@@ -264,6 +279,102 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {showUpgradeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setShowUpgradeModal(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white">Premium эрх авах</h3>
+            <p className="mt-1 text-sm text-zinc-400">
+              Premium болсноор илүү олон зураг үүсгэх боломжтой болно.
+            </p>
+
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+              {settings && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-zinc-500">Сарын төлбөр</span>
+                    <span className="text-lg font-semibold text-white">
+                      {settings.premiumMonthlyPrice.toLocaleString("mn-MN")}₮
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-zinc-500">Зургийн лимит</span>
+                    <span className="text-sm text-zinc-300">
+                      {settings.paidGenerationLimit} зураг/сар
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-[auto,1fr] gap-5">
+              {/* QR Code - зүүн тал */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="rounded-xl border border-white/10 bg-white p-3">
+                  <QRCodeSVG
+                    value={`bank://khanbank/5429123456780000?amount=${settings?.premiumMonthlyPrice ?? 29900}&ref=${user?.email ?? ""}`}
+                    size={180}
+                    level="M"
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                  />
+                </div>
+                <p className="text-xs text-zinc-500">QR код уншуулах</p>
+                {settings && (
+                  <p className="text-sm font-semibold text-white">
+                    {settings.premiumMonthlyPrice.toLocaleString("mn-MN")}₮
+                  </p>
+                )}
+              </div>
+
+              {/* Банкны мэдээлэл - баруун тал */}
+              <div className="rounded-xl border border-[#bde7ff]/20 bg-[#bde7ff]/5 p-4 space-y-3">
+                <p className="text-[11px] tracking-[0.08em] uppercase text-[#bde7ff] font-medium">
+                  Дансаар шилжүүлэх
+                </p>
+                <div className="space-y-2.5">
+                  <div>
+                    <p className="text-[11px] text-zinc-500">Хүлээн авах данс</p>
+                    <p className="text-sm font-medium text-white">5429 1234 5678</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-zinc-500">Хүлээн авагч</p>
+                    <p className="text-sm font-medium text-white">Реко ХХК</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-zinc-500">Банк</p>
+                    <p className="text-sm font-medium text-white">Хаан банк</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-zinc-500">Гүйлгээний утга</p>
+                    <p className="text-sm font-medium text-white">{user?.email}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+              <p className="text-xs text-amber-200/80">
+                Төлбөр төлөгдсөний дараа таны захиалга идэвхждэг болохыг анхаарааарай!
+                Гүйлгээний утга дээр <span className="font-semibold text-amber-100">{user?.email}</span> бичнэ үү.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowUpgradeModal(false)}
+              className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-white/10 transition"
+            >
+              Хаах
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

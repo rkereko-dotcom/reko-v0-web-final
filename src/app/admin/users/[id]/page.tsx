@@ -23,6 +23,7 @@ interface UserDetail {
   tier: "free" | "premium";
   createdAt: string;
   updatedAt: string;
+  quotaResetAt: string;
   generatedImages: GeneratedImageRow[];
 }
 
@@ -48,8 +49,17 @@ export default function AdminUserDetailPage() {
   const [user, setUser] = useState<UserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<GeneratedImageRow | null>(null);
+  const [selectedImage, setSelectedImage] = useState<GeneratedImageRow | null>(
+    null,
+  );
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [generationLimit, setGenerationLimit] = useState<{
+    free: number;
+    paid: number;
+  } | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
 
   const closeModal = useCallback(() => {
     setSelectedImage(null);
@@ -59,8 +69,22 @@ export default function AdminUserDetailPage() {
   useEffect(() => {
     if (profile?.role === "admin" && params.id) {
       fetchUser(params.id);
+      fetchLimits();
     }
   }, [profile, params.id]);
+
+  async function fetchLimits() {
+    try {
+      const res = await fetch("/api/admin/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setGenerationLimit({
+          free: data.freeGenerationLimit,
+          paid: data.paidGenerationLimit,
+        });
+      }
+    } catch {}
+  }
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -71,6 +95,54 @@ export default function AdminUserDetailPage() {
       return () => document.removeEventListener("keydown", handleKey);
     }
   }, [selectedImage, closeModal]);
+
+  async function handleUpgrade() {
+    if (!params.id) return;
+    setUpgrading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${params.id}/reset-quota`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upgrade: true }),
+      });
+      if (!res.ok) throw new Error("Ахиулахад алдаа гарлаа");
+      const updated = await res.json();
+      setUser((prev) =>
+        prev
+          ? { ...prev, tier: updated.tier, quotaResetAt: updated.quotaResetAt }
+          : prev,
+      );
+      setShowUpgradeModal(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Алдаа гарлаа");
+    } finally {
+      setUpgrading(false);
+    }
+  }
+
+  async function handleRenew() {
+    if (!params.id) return;
+    setUpgrading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${params.id}/reset-quota`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upgrade: false }),
+      });
+      if (!res.ok) throw new Error("Эрх шинэчлэхэд алдаа гарлаа");
+      const updated = await res.json();
+      setUser((prev) =>
+        prev
+          ? { ...prev, tier: updated.tier, quotaResetAt: updated.quotaResetAt }
+          : prev,
+      );
+      setShowRenewModal(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Алдаа гарлаа");
+    } finally {
+      setUpgrading(false);
+    }
+  }
 
   async function fetchUser(id: string) {
     setLoading(true);
@@ -93,7 +165,7 @@ export default function AdminUserDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-sm text-zinc-500">Ачааллаж байна...</p>
+        <p className="text-sm text-zinc-500">Ачаалж байна...</p>
       </div>
     );
   }
@@ -119,8 +191,18 @@ export default function AdminUserDetailPage() {
         href="/admin/users"
         className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 transition mb-6"
       >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15.75 19.5 8.25 12l7.5-7.5"
+          />
         </svg>
         Хэрэглэгчид
       </Link>
@@ -131,7 +213,7 @@ export default function AdminUserDetailPage() {
             {user.email?.[0]?.toUpperCase() ?? "?"}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold text-white font-[var(--font-display)] tracking-tight truncate">
+            <h1 className="text-2xl font-semibold text-white tracking-tight truncate">
               {user.email ?? "—"}
             </h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -156,7 +238,26 @@ export default function AdminUserDetailPage() {
               <span className="text-xs text-zinc-500">
                 Бүртгүүлсэн: {formatDate(user.createdAt)}
               </span>
+              <span className="text-xs text-zinc-600">
+                Эрх сунгагдсан: {formatDate(user.quotaResetAt)}
+              </span>
             </div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            {user.tier === "free" && (
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                className="rounded-xl bg-emerald-500/90 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition"
+              >
+                Upgrade to Pro
+              </button>
+            )}
+            <button
+              onClick={() => setShowRenewModal(true)}
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/10 transition"
+            >
+              Эрх шинэчлэх
+            </button>
           </div>
         </div>
       </div>
@@ -165,9 +266,34 @@ export default function AdminUserDetailPage() {
       <div className="rounded-2xl border border-white/8 bg-zinc-950/80 overflow-hidden">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <h2 className="text-white font-semibold">Үүсгэсэн зургууд</h2>
-          <span className="text-xs text-zinc-500">
-            Нийт: {user.generatedImages.length}
-          </span>
+          {(() => {
+            const resetDate = new Date(user.quotaResetAt);
+            const usedCount = user.generatedImages.filter(
+              (img) => new Date(img.createdAt) >= resetDate,
+            ).length;
+            const limit = generationLimit
+              ? user.tier === "premium"
+                ? generationLimit.paid
+                : generationLimit.free
+              : null;
+            return (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-zinc-500">
+                  Эрх: {usedCount}
+                  {limit !== null ? `/${limit}` : ""}
+                </span>
+                {limit !== null && (
+                  <span
+                    className={`text-xs font-medium ${usedCount >= limit ? "text-red-400" : "text-emerald-400"}`}
+                  >
+                    {usedCount >= limit
+                      ? "Дууссан"
+                      : `${limit - usedCount} үлдсэн`}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {user.generatedImages.length === 0 ? (
@@ -186,8 +312,14 @@ export default function AdminUserDetailPage() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {user.generatedImages.map((img) => (
-                <tr key={img.id} onClick={() => setSelectedImage(img)} className="hover:bg-white/2 transition cursor-pointer">
-                  <td className="px-5 py-4 text-zinc-200">{img.variationName}</td>
+                <tr
+                  key={img.id}
+                  onClick={() => setSelectedImage(img)}
+                  className="hover:bg-white/2 transition cursor-pointer"
+                >
+                  <td className="px-5 py-4 text-zinc-200">
+                    {img.variationName}
+                  </td>
                   <td className="px-5 py-4">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -210,6 +342,121 @@ export default function AdminUserDetailPage() {
         )}
       </div>
 
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowUpgradeModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white">Эрх ахиулах</h3>
+            <p className="mt-1 text-sm text-zinc-400">
+              {user.email} хэрэглэгчийн эрхийг Premium болгож, зураг үүсгэх
+              лимитийг шинэчилнэ.
+            </p>
+
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-500">Одоогийн эрх</span>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    user.tier === "premium"
+                      ? "bg-emerald-500/15 text-emerald-300"
+                      : "bg-white/10 text-zinc-400"
+                  }`}
+                >
+                  {user.tier === "premium" ? "Premium" : "Free"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-500">Ахиулах эрх</span>
+                <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-500/15 text-emerald-300">
+                  Premium
+                </span>
+              </div>
+              {generationLimit && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Зургийн лимит</span>
+                  <span className="text-sm text-zinc-300">
+                    {user.tier === "premium"
+                      ? generationLimit.paid
+                      : generationLimit.free}{" "}
+                    → {generationLimit.paid} зураг/сар
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-white/10 transition"
+              >
+                Болих
+              </button>
+              <button
+                onClick={handleUpgrade}
+                disabled={upgrading}
+                className="flex-1 rounded-xl bg-emerald-500/90 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {upgrading ? "Ахиулж байна..." : "Баталгаажуулах"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Renew Quota Modal */}
+      {showRenewModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowRenewModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white">Эрх шинэчлэх</h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              {user.email} хэрэглэгчийн зураг үүсгэх эрхийг шинэчилнэ.
+            </p>
+
+            {generationLimit && (
+              <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500">Лимит</span>
+                  <span className="text-sm font-semibold text-white">
+                    {user.tier === "premium" ? generationLimit.paid : generationLimit.free} зураг
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-500">
+                  Эрх сэргээгдсэний дараа ашигласан тоо 0 болно.
+                </p>
+              </div>
+            )}
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowRenewModal(false)}
+                className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-white/10 transition"
+              >
+                Болих
+              </button>
+              <button
+                onClick={handleRenew}
+                disabled={upgrading}
+                className="flex-1 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {upgrading ? "Сэргээж байна..." : "Сэргээх"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Image Preview Modal */}
       {selectedImage && (
         <div
@@ -227,23 +474,37 @@ export default function AdminUserDetailPage() {
                   {selectedImage.variationName}
                 </p>
                 <p className="text-xs text-zinc-500">
-                  {selectedImage.aspectRatio} &middot; {selectedImage.source === "studio" ? "Studio" : "API"} &middot; {formatDate(selectedImage.createdAt)}
+                  {selectedImage.aspectRatio} &middot;{" "}
+                  {selectedImage.source === "studio" ? "Studio" : "API"}{" "}
+                  &middot; {formatDate(selectedImage.createdAt)}
                 </p>
               </div>
               <button
                 onClick={closeModal}
                 className="ml-4 shrink-0 rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18 18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
 
             {/* Image */}
-            <div className="flex items-center justify-center overflow-auto p-4 min-h-[200px]">
+            <div className="flex items-center justify-center overflow-auto p-4 min-h-50">
               {!imageLoaded && (
-                <p className="absolute text-sm text-zinc-500">Ачааллаж байна...</p>
+                <p className="absolute text-sm text-zinc-500">
+                  Ачаалж байна...
+                </p>
               )}
               <Image
                 src={getImageUrl(selectedImage.filePath)}

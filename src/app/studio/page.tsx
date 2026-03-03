@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useSiteName } from "@/components/providers/site-settings-provider";
 import { TEXT_SPECS } from "@/lib/design-system";
 
 // Steve Jobs Style Category Scores
@@ -309,6 +310,7 @@ const MAX_AUTO_RETRIES = 3;
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
+  const siteName = useSiteName();
   const router = useRouter();
 
   useEffect(() => {
@@ -1368,7 +1370,7 @@ export default function Home() {
   if (authLoading || !user) {
     return (
       <div className="min-h-screen gradient-bg flex items-center justify-center">
-        <p className="text-zinc-500 text-sm">Ачааллаж байна...</p>
+        <p className="text-zinc-500 text-sm">Ачаалж байна...</p>
       </div>
     );
   }
@@ -1396,7 +1398,7 @@ export default function Home() {
               </svg>
             </div>
             <div className="leading-tight">
-              <span className="block text-xl font-semibold text-white font-[var(--font-display)] tracking-tight">Reko</span>
+              <span className="block text-xl font-semibold text-white font-[var(--font-display)] tracking-tight">{siteName}</span>
               <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">Poster Coach</span>
             </div>
 
@@ -3279,7 +3281,7 @@ export default function Home() {
       <footer className="border-t border-zinc-800 px-6 py-4">
         <div className="max-w-7xl mx-auto text-center">
           <p className="text-zinc-500 text-sm">
-            &copy; 2025 Reko. Uses the Design Principles Database.
+            &copy; 2025 {siteName}. Uses the Design Principles Database.
           </p>
         </div>
       </footer>

@@ -124,7 +124,7 @@ export default function AdminUsersPage() {
 
         {fetchLoading ? (
           <div className="flex items-center justify-center py-16">
-            <p className="text-sm text-zinc-500">Ачааллаж байна...</p>
+            <p className="text-sm text-zinc-500">Ачаалж байна...</p>
           </div>
         ) : error ? (
           <div className="flex items-center justify-center py-16">
