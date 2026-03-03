@@ -6,7 +6,8 @@ import { logEvent } from "@/lib/telemetry";
 import { extractCodeBlocks, loadPromptFile } from "@/lib/prompt-loader";
 import { pickCoreRulesPrompt } from "@/lib/prompt-policy";
 import { buildReferenceCueBlock, findReferenceMatches } from "@/lib/reference-matcher";
-import { saveGeneratedImages } from "@/lib/save-image";
+import { saveGeneratedImages, saveGeneratedImageRecords } from "@/lib/save-image";
+import { createClient } from "@/lib/supabase/server";
 
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 
@@ -3270,6 +3271,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Authenticate user via Supabase
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json()) as GenerateRequest;
     let {
       prompts: inputPrompts,
@@ -3720,6 +3731,13 @@ export async function POST(request: NextRequest) {
         // Auto-save generated images to disk with proper variation names
         const savedPaths = saveGeneratedImages(generatedImages, variationNames);
 
+        // Save image records to database
+        const imagesForDb = generatedImages.map(img => ({
+          index: img.index,
+          name: variationNames[img.index] || `Variation ${img.index + 1}`,
+        }));
+        await saveGeneratedImageRecords(user.id, savedPaths, imagesForDb, requestId, aspectRatio, "studio");
+
         // Add variation names to the response
         const imagesWithNames = generatedImages.map(img => ({
           ...img,
@@ -3919,6 +3937,13 @@ export async function POST(request: NextRequest) {
 
     // Auto-save generated images to disk with proper variation names
     const savedPaths = saveGeneratedImages(generatedImages, variationNames);
+
+    // Save image records to database
+    const imagesForDb = generatedImages.map(img => ({
+      index: img.index,
+      name: variationNames[img.index] || `Variation ${img.index + 1}`,
+    }));
+    await saveGeneratedImageRecords(user.id, savedPaths, imagesForDb, requestId, aspectRatio, "studio");
 
     // Add variation names to the response
     const imagesWithNames = generatedImages.map(img => ({

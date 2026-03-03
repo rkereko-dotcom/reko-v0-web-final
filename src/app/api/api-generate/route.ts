@@ -6,7 +6,8 @@ import { loadPromptFile } from "@/lib/prompt-loader";
 import { pickCoreRulesPrompt } from "@/lib/prompt-policy";
 import { getStylePromptGuidance } from "@/lib/design-system";
 import { matchDesignerToProject, enhancePromptWithDesignerStyle } from "@/lib/designer-masters";
-import { saveGeneratedImages } from "@/lib/save-image";
+import { saveGeneratedImages, saveGeneratedImageRecords } from "@/lib/save-image";
+import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 60;
 
@@ -433,12 +434,28 @@ export async function POST(request: NextRequest) {
 
     // 3. Parse & validate
     const body = await request.json();
-    const { image, businessContext, count, aspectRatio } = body as {
+    const { image, businessContext, count, aspectRatio, email } = body as {
       image?: string;
       businessContext?: BusinessContext;
       count?: number;
       aspectRatio?: AspectRatio;
+      email?: string;
     };
+
+    // Email is required — look up user by email
+    if (!email || typeof email !== "string") {
+      return NextResponse.json(
+        { error: "Missing required field: email" },
+        { status: 400, headers: CORS_HEADERS },
+      );
+    }
+    const profile = await prisma.profile.findFirst({ where: { email } });
+    if (!profile) {
+      return NextResponse.json(
+        { error: "User not found with this email" },
+        { status: 400, headers: CORS_HEADERS },
+      );
+    }
 
     // All fields are required
     if (!image || typeof image !== "string" || !image.startsWith("data:")) {
@@ -553,7 +570,17 @@ export async function POST(request: NextRequest) {
       images.map((img) => ({ imageData: img.url, index: img.index, name: img.name })),
     );
 
-    // 9. Return
+    // 9. Save image records to database
+    await saveGeneratedImageRecords(
+      profile.id,
+      savedPaths,
+      images.map((img) => ({ index: img.index, name: img.name })),
+      requestId,
+      aspectRatio,
+      "api",
+    );
+
+    // 10. Return
     return NextResponse.json(
       {
         images,

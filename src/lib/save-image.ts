@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { prisma } from "@/lib/prisma";
 
 const SAVE_FOLDER = path.join(process.cwd(), "generated-images");
 
@@ -58,4 +59,34 @@ export function saveGeneratedImages(
     );
   }
   return savedPaths;
+}
+
+/**
+ * Save generated image records to the database.
+ */
+export async function saveGeneratedImageRecords(
+  userId: string,
+  savedPaths: string[],
+  images: { index: number; name?: string }[],
+  requestId: string,
+  aspectRatio: string,
+  source: "studio" | "api",
+): Promise<void> {
+  if (savedPaths.length === 0) return;
+
+  const records = savedPaths.map((filePath, i) => ({
+    userId,
+    filePath,
+    variationName: images[i]?.name || `Variation ${i + 1}`,
+    requestId,
+    aspectRatio,
+    source,
+  }));
+
+  try {
+    await prisma.generatedImage.createMany({ data: records });
+    console.log(`📝 Saved ${records.length} image records to DB (user: ${userId})`);
+  } catch (error) {
+    console.error("Failed to save image records to DB:", error);
+  }
 }

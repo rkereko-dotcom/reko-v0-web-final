@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 
 interface UserRow {
@@ -23,6 +24,7 @@ function formatDate(dateStr: string) {
 
 export default function AdminUsersPage() {
   const { profile } = useAuth();
+  const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +146,7 @@ export default function AdminUsersPage() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {filteredUsers.map((u) => (
-                <tr key={u.id} className="hover:bg-white/2 transition">
+                <tr key={u.id} onClick={() => router.push(`/admin/users/${u.id}`)} className="hover:bg-white/2 transition cursor-pointer">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-zinc-300">
