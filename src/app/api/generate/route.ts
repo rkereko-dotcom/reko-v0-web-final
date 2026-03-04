@@ -8,6 +8,7 @@ import { pickCoreRulesPrompt } from "@/lib/prompt-policy";
 import { buildReferenceCueBlock, findReferenceMatches } from "@/lib/reference-matcher";
 import { saveGeneratedImages, saveGeneratedImageRecords } from "@/lib/save-image";
 import { createClient } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 
@@ -3279,6 +3280,48 @@ export async function POST(request: NextRequest) {
         { error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    // Check generation quota (count by unique requests, not individual images)
+    const userProfile = await prisma.profile.findUnique({
+      where: { id: user.id },
+    });
+    if (userProfile) {
+      const settings = await prisma.siteSettings.findUnique({
+        where: { id: "default" },
+      });
+      const generationLimit = userProfile.tier === "premium"
+        ? (settings?.paidGenerationLimit ?? 50)
+        : (settings?.freeGenerationLimit ?? 5);
+
+      // Auto-refresh quota: free = 7 days, premium = 30 days
+      const cycleDays = userProfile.tier === "premium" ? 30 : 7;
+      const cycleMs = cycleDays * 24 * 60 * 60 * 1000;
+      const now = new Date();
+      let quotaResetAt = userProfile.quotaResetAt;
+
+      if (now.getTime() - quotaResetAt.getTime() >= cycleMs) {
+        quotaResetAt = now;
+        await prisma.profile.update({
+          where: { id: user.id },
+          data: { quotaResetAt: now },
+        });
+      }
+
+      const usedRequests = await prisma.generatedImage.groupBy({
+        by: ["requestId"],
+        where: {
+          userId: user.id,
+          createdAt: { gte: quotaResetAt },
+        },
+      });
+
+      if (usedRequests.length >= generationLimit) {
+        return NextResponse.json(
+          { error: "Таны зураг үүсгэх эрх дууссан байна. Админтай холбогдоно уу." },
+          { status: 403 }
+        );
+      }
     }
 
     const body = (await request.json()) as GenerateRequest;

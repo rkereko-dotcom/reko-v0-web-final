@@ -152,7 +152,7 @@ export default function AdminSettingsPage() {
                   onChange={(e) => setFreeLimit(parseInt(e.target.value) || 0)}
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/20 transition"
                 />
-                <p className="text-[11px] text-zinc-600 mt-1.5">Нийт үүсгэх боломжтой зургийн тоо</p>
+                <p className="text-[11px] text-zinc-600 mt-1.5">Нийт generate хийх боломжтой удаа (1 удаа = 4 зураг)</p>
               </div>
               <div>
                 <label className="block text-[11px] tracking-[0.08em] uppercase text-zinc-500 mb-2">
@@ -165,7 +165,7 @@ export default function AdminSettingsPage() {
                   onChange={(e) => setPaidLimit(parseInt(e.target.value) || 0)}
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/20 transition"
                 />
-                <p className="text-[11px] text-zinc-600 mt-1.5">Сард үүсгэх боломжтой зургийн тоо</p>
+                <p className="text-[11px] text-zinc-600 mt-1.5">Сард generate хийх боломжтой удаа (1 удаа = 4 зураг)</p>
               </div>
             </div>
           </div>

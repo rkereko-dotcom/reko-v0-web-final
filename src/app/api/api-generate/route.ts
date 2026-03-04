@@ -457,6 +457,45 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check generation quota (count by unique requests, not individual images)
+    {
+      const settings = await prisma.siteSettings.findUnique({
+        where: { id: "default" },
+      });
+      const generationLimit = profile.tier === "premium"
+        ? (settings?.paidGenerationLimit ?? 50)
+        : (settings?.freeGenerationLimit ?? 5);
+
+      // Auto-refresh quota: free = 7 days, premium = 30 days
+      const cycleDays = profile.tier === "premium" ? 30 : 7;
+      const cycleMs = cycleDays * 24 * 60 * 60 * 1000;
+      const now = new Date();
+      let quotaResetAt = profile.quotaResetAt;
+
+      if (now.getTime() - quotaResetAt.getTime() >= cycleMs) {
+        quotaResetAt = now;
+        await prisma.profile.update({
+          where: { id: profile.id },
+          data: { quotaResetAt: now },
+        });
+      }
+
+      const usedRequests = await prisma.generatedImage.groupBy({
+        by: ["requestId"],
+        where: {
+          userId: profile.id,
+          createdAt: { gte: quotaResetAt },
+        },
+      });
+
+      if (usedRequests.length >= generationLimit) {
+        return NextResponse.json(
+          { error: "Таны зураг үүсгэх эрх дууссан байна. Админтай холбогдоно уу." },
+          { status: 403, headers: CORS_HEADERS },
+        );
+      }
+    }
+
     // All fields are required
     if (!image || typeof image !== "string" || !image.startsWith("data:")) {
       return NextResponse.json(

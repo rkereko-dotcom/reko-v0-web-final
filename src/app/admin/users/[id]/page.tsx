@@ -241,6 +241,14 @@ export default function AdminUserDetailPage() {
               <span className="text-xs text-zinc-600">
                 Эрх сунгагдсан: {formatDate(user.quotaResetAt)}
               </span>
+              <span className="text-xs text-zinc-600">
+                Дараагийн шинэчлэл: {formatDate(
+                  new Date(
+                    new Date(user.quotaResetAt).getTime() +
+                    (user.tier === "premium" ? 30 : 7) * 24 * 60 * 60 * 1000
+                  ).toISOString()
+                )} ({user.tier === "premium" ? "30 хоног" : "7 хоног"})
+              </span>
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -268,9 +276,10 @@ export default function AdminUserDetailPage() {
           <h2 className="text-white font-semibold">Үүсгэсэн зургууд</h2>
           {(() => {
             const resetDate = new Date(user.quotaResetAt);
-            const usedCount = user.generatedImages.filter(
+            const imagesAfterReset = user.generatedImages.filter(
               (img) => new Date(img.createdAt) >= resetDate,
-            ).length;
+            );
+            const usedCount = new Set(imagesAfterReset.map((img) => img.requestId)).size;
             const limit = generationLimit
               ? user.tier === "premium"
                 ? generationLimit.paid
@@ -384,7 +393,7 @@ export default function AdminUserDetailPage() {
                     {user.tier === "premium"
                       ? generationLimit.paid
                       : generationLimit.free}{" "}
-                    → {generationLimit.paid} зураг/сар
+                    → {generationLimit.paid} удаа/сар
                   </span>
                 </div>
               )}
@@ -429,7 +438,7 @@ export default function AdminUserDetailPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-zinc-500">Лимит</span>
                   <span className="text-sm font-semibold text-white">
-                    {user.tier === "premium" ? generationLimit.paid : generationLimit.free} зураг
+                    {user.tier === "premium" ? generationLimit.paid : generationLimit.free} удаа
                   </span>
                 </div>
                 <p className="text-xs text-zinc-500">
