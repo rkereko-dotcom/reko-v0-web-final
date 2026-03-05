@@ -12,11 +12,15 @@ export async function GET() {
     return NextResponse.json({
       premiumMonthlyPrice: settings.premiumMonthlyPrice,
       paidGenerationLimit: settings.paidGenerationLimit,
+      freeGenerationLimit: settings.freeGenerationLimit,
+      tokenPrice: settings.tokenPrice,
     });
   } catch {
     return NextResponse.json({
       premiumMonthlyPrice: 29900,
       paidGenerationLimit: 50,
+      freeGenerationLimit: 5,
+      tokenPrice: 1000,
     });
   }
 }

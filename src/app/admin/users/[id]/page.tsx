@@ -24,6 +24,8 @@ interface UserDetail {
   createdAt: string;
   updatedAt: string;
   quotaResetAt: string;
+  tokenBalance: number;
+  premiumExpiresAt: string | null;
   generatedImages: GeneratedImageRow[];
 }
 
@@ -59,6 +61,8 @@ export default function AdminUserDetailPage() {
   } | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showRenewModal, setShowRenewModal] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [tokenAmount, setTokenAmount] = useState(1);
   const [upgrading, setUpgrading] = useState(false);
 
   const closeModal = useCallback(() => {
@@ -109,7 +113,7 @@ export default function AdminUserDetailPage() {
       const updated = await res.json();
       setUser((prev) =>
         prev
-          ? { ...prev, tier: updated.tier, quotaResetAt: updated.quotaResetAt }
+          ? { ...prev, tier: updated.tier, quotaResetAt: updated.quotaResetAt, premiumExpiresAt: updated.premiumExpiresAt }
           : prev,
       );
       setShowUpgradeModal(false);
@@ -133,10 +137,33 @@ export default function AdminUserDetailPage() {
       const updated = await res.json();
       setUser((prev) =>
         prev
-          ? { ...prev, tier: updated.tier, quotaResetAt: updated.quotaResetAt }
+          ? { ...prev, tier: updated.tier, quotaResetAt: updated.quotaResetAt, premiumExpiresAt: updated.premiumExpiresAt }
           : prev,
       );
       setShowRenewModal(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Алдаа гарлаа");
+    } finally {
+      setUpgrading(false);
+    }
+  }
+
+  async function handleAddTokens() {
+    if (!params.id || tokenAmount <= 0) return;
+    setUpgrading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${params.id}/add-tokens`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: tokenAmount }),
+      });
+      if (!res.ok) throw new Error("Token нэмэхэд алдаа гарлаа");
+      const updated = await res.json();
+      setUser((prev) =>
+        prev ? { ...prev, tokenBalance: updated.tokenBalance } : prev,
+      );
+      setShowTokenModal(false);
+      setTokenAmount(1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Алдаа гарлаа");
     } finally {
@@ -249,6 +276,16 @@ export default function AdminUserDetailPage() {
                   ).toISOString()
                 )} ({user.tier === "premium" ? "30 хоног" : "7 хоног"})
               </span>
+              {user.premiumExpiresAt && (
+                <span className={`text-xs ${new Date(user.premiumExpiresAt) > new Date() ? "text-emerald-400" : "text-red-400"}`}>
+                  Premium: {new Date(user.premiumExpiresAt) > new Date()
+                    ? `${formatDate(user.premiumExpiresAt)} хүртэл`
+                    : "хугацаа дууссан"}
+                </span>
+              )}
+              <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                Token: {user.tokenBalance}
+              </span>
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -260,6 +297,12 @@ export default function AdminUserDetailPage() {
                 Upgrade to Pro
               </button>
             )}
+            <button
+              onClick={() => setShowTokenModal(true)}
+              className="rounded-xl bg-amber-500/90 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-500 transition"
+            >
+              Token нэмэх
+            </button>
             <button
               onClick={() => setShowRenewModal(true)}
               className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/10 transition"
@@ -460,6 +503,59 @@ export default function AdminUserDetailPage() {
                 className="flex-1 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {upgrading ? "Сэргээж байна..." : "Сэргээх"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Tokens Modal */}
+      {showTokenModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowTokenModal(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-950 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white">Token нэмэх</h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              {user.email} хэрэглэгчид token нэмнэ. 1 token = 1 удаа generate (4 зураг).
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4">
+                <span className="text-xs text-zinc-500">Одоогийн token</span>
+                <span className="text-sm font-semibold text-amber-300">{user.tokenBalance}</span>
+              </div>
+              <div>
+                <label className="block text-[11px] tracking-[0.08em] uppercase text-zinc-500 mb-2">
+                  Нэмэх тоо
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={tokenAmount}
+                  onChange={(e) => setTokenAmount(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-white/20 transition"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowTokenModal(false)}
+                className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-white/10 transition"
+              >
+                Болих
+              </button>
+              <button
+                onClick={handleAddTokens}
+                disabled={upgrading}
+                className="flex-1 rounded-xl bg-amber-500/90 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {upgrading ? "Нэмж байна..." : `${tokenAmount} token нэмэх`}
               </button>
             </div>
           </div>

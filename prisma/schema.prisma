@@ -22,12 +22,15 @@ model Profile {
   email     String?
   role      UserRole @default(client)
   tier      UserTier @default(free)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
-  quotaResetAt DateTime @default(now()) @map("quota_reset_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
+  quotaResetAt     DateTime  @default(now()) @map("quota_reset_at")
+  tokenBalance     Int       @default(0) @map("token_balance")
+  premiumExpiresAt DateTime? @map("premium_expires_at")
 
   generatedImages GeneratedImage[]
   paymentLogs     PaymentLog[]
+  tokenLogs       TokenLog[]
 
   @@map("profiles")
 }
@@ -50,7 +53,7 @@ model GeneratedImage {
 model PaymentLog {
   id        String   @id @default(cuid())
   userId    String   @db.Uuid @map("user_id")
-  action    String   // "upgrade" | "renew"
+  action    String   // "upgrade" | "renew" | "token_grant" | "qpay_token" | "qpay_premium"
   prevTier  String   @map("prev_tier")
   newTier   String   @map("new_tier")
   createdAt DateTime @default(now()) @map("created_at")
@@ -60,6 +63,19 @@ model PaymentLog {
   @@map("payment_logs")
 }
 
+model TokenLog {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid @map("user_id")
+  amount    Int      // +N = нэмэгдсэн, -1 = зарцуулсан
+  reason    String   // "admin_grant" | "qpay_purchase" | "generation_use"
+  balance   Int      // гүйлгээний дараах үлдэгдэл
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("token_logs")
+}
+
 model SiteSettings {
   id                  String   @id @default("default")
   siteName            String   @default("Reko") @map("site_name")
@@ -67,6 +83,7 @@ model SiteSettings {
   freeGenerationLimit Int      @default(5) @map("free_generation_limit")
   paidGenerationLimit Int      @default(50) @map("paid_generation_limit")
   premiumMonthlyPrice Int      @default(29900) @map("premium_monthly_price")
+  tokenPrice          Int      @default(1000) @map("token_price")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("site_settings")

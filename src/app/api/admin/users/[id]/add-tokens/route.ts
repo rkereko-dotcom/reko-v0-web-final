@@ -25,7 +25,14 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
-  const shouldUpgrade = body.upgrade === true;
+  const amount = Number(body.amount);
+
+  if (!Number.isInteger(amount) || amount <= 0) {
+    return NextResponse.json(
+      { error: "amount must be a positive integer" },
+      { status: 400 },
+    );
+  }
 
   const targetProfile = await prisma.profile.findUnique({
     where: { id },
@@ -35,44 +42,30 @@ export async function POST(
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  const prevTier = targetProfile.tier;
-
-  const now = new Date();
-  const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-  const updateData: {
-    quotaResetAt: Date;
-    tier?: "premium";
-    premiumExpiresAt?: Date;
-  } = {
-    quotaResetAt: now,
-  };
-  if (shouldUpgrade) {
-    updateData.tier = "premium";
-    updateData.premiumExpiresAt = thirtyDaysLater;
-  }
-  // Renew for premium user — extend premiumExpiresAt too
-  if (!shouldUpgrade && targetProfile.tier === "premium") {
-    updateData.premiumExpiresAt = thirtyDaysLater;
-  }
-
-  const profile = await prisma.profile.update({
+  const updated = await prisma.profile.update({
     where: { id },
-    data: updateData,
+    data: { tokenBalance: { increment: amount } },
+  });
+
+  await prisma.tokenLog.create({
+    data: {
+      userId: id,
+      amount,
+      reason: "admin_grant",
+      balance: updated.tokenBalance,
+    },
   });
 
   await prisma.paymentLog.create({
     data: {
       userId: id,
-      action: shouldUpgrade ? "upgrade" : "renew",
-      prevTier: prevTier,
-      newTier: profile.tier,
+      action: "token_grant",
+      prevTier: targetProfile.tier,
+      newTier: targetProfile.tier,
     },
   });
 
   return NextResponse.json({
-    tier: profile.tier,
-    quotaResetAt: profile.quotaResetAt,
-    premiumExpiresAt: profile.premiumExpiresAt,
+    tokenBalance: updated.tokenBalance,
   });
 }

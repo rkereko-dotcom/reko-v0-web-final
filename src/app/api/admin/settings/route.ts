@@ -48,6 +48,7 @@ export async function PUT(request: NextRequest) {
     freeGenerationLimit,
     paidGenerationLimit,
     premiumMonthlyPrice,
+    tokenPrice,
   } = body;
 
   if (
@@ -55,7 +56,8 @@ export async function PUT(request: NextRequest) {
     typeof tabTitle !== "string" ||
     typeof freeGenerationLimit !== "number" ||
     typeof paidGenerationLimit !== "number" ||
-    typeof premiumMonthlyPrice !== "number"
+    typeof premiumMonthlyPrice !== "number" ||
+    typeof tokenPrice !== "number"
   ) {
     return NextResponse.json(
       { error: "Invalid input: all fields are required with correct types" },
@@ -63,7 +65,7 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  if (freeGenerationLimit < 0 || paidGenerationLimit < 0 || premiumMonthlyPrice < 0) {
+  if (freeGenerationLimit < 0 || paidGenerationLimit < 0 || premiumMonthlyPrice < 0 || tokenPrice < 0) {
     return NextResponse.json(
       { error: "Numeric values must be non-negative" },
       { status: 400 }
@@ -78,6 +80,7 @@ export async function PUT(request: NextRequest) {
       freeGenerationLimit,
       paidGenerationLimit,
       premiumMonthlyPrice,
+      tokenPrice,
     },
     create: {
       id: "default",
@@ -86,6 +89,7 @@ export async function PUT(request: NextRequest) {
       freeGenerationLimit,
       paidGenerationLimit,
       premiumMonthlyPrice,
+      tokenPrice,
     },
   });
 

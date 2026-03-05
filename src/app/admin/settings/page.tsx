@@ -9,6 +9,7 @@ interface SiteSettings {
   freeGenerationLimit: number;
   paidGenerationLimit: number;
   premiumMonthlyPrice: number;
+  tokenPrice: number;
 }
 
 export default function AdminSettingsPage() {
@@ -23,6 +24,7 @@ export default function AdminSettingsPage() {
   const [freeLimit, setFreeLimit] = useState(0);
   const [paidLimit, setPaidLimit] = useState(0);
   const [monthlyPrice, setMonthlyPrice] = useState(0);
+  const [tokenPrice, setTokenPrice] = useState(0);
 
   useEffect(() => {
     if (profile?.role === "admin") {
@@ -42,6 +44,7 @@ export default function AdminSettingsPage() {
       setFreeLimit(data.freeGenerationLimit);
       setPaidLimit(data.paidGenerationLimit);
       setMonthlyPrice(data.premiumMonthlyPrice);
+      setTokenPrice(data.tokenPrice);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Алдаа гарлаа");
     } finally {
@@ -63,6 +66,7 @@ export default function AdminSettingsPage() {
           freeGenerationLimit: freeLimit,
           paidGenerationLimit: paidLimit,
           premiumMonthlyPrice: monthlyPrice,
+          tokenPrice,
         }),
       });
       if (!res.ok) {
@@ -175,13 +179,13 @@ export default function AdminSettingsPage() {
             <div className="border-b border-white/10 px-5 py-4">
               <h2 className="text-white font-semibold">Үнийн тохиргоо</h2>
               <p className="text-xs text-zinc-500 mt-1">
-                Premium эрхийн сарын төлбөрийг тохируулна
+                Premium эрхийн сарын төлбөр болон token үнийг тохируулна
               </p>
             </div>
-            <div className="p-5">
+            <div className="p-5 grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-[11px] tracking-[0.08em] uppercase text-zinc-500 mb-2">
-                  Сарын төлбөр (₮)
+                  Premium сарын төлбөр (₮)
                 </label>
                 <div className="relative">
                   <input
@@ -195,6 +199,24 @@ export default function AdminSettingsPage() {
                 </div>
                 <p className="text-[11px] text-zinc-600 mt-1.5">
                   {monthlyPrice.toLocaleString("mn-MN")}₮ / сар
+                </p>
+              </div>
+              <div>
+                <label className="block text-[11px] tracking-[0.08em] uppercase text-zinc-500 mb-2">
+                  1 Token үнэ (₮)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={tokenPrice}
+                    onChange={(e) => setTokenPrice(parseInt(e.target.value) || 0)}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 pr-10 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/20 transition"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-zinc-500">₮</span>
+                </div>
+                <p className="text-[11px] text-zinc-600 mt-1.5">
+                  1 token = 1 generate = 4 зураг ({tokenPrice.toLocaleString("mn-MN")}₮)
                 </p>
               </div>
             </div>

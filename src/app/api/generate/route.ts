@@ -3287,17 +3287,32 @@ export async function POST(request: NextRequest) {
       where: { id: user.id },
     });
     if (userProfile) {
+      const now = new Date();
+      let currentTier = userProfile.tier;
+
+      // Auto-downgrade: premium expired → free
+      if (
+        currentTier === "premium" &&
+        userProfile.premiumExpiresAt &&
+        now > userProfile.premiumExpiresAt
+      ) {
+        await prisma.profile.update({
+          where: { id: user.id },
+          data: { tier: "free", premiumExpiresAt: null },
+        });
+        currentTier = "free";
+      }
+
       const settings = await prisma.siteSettings.findUnique({
         where: { id: "default" },
       });
-      const generationLimit = userProfile.tier === "premium"
+      const generationLimit = currentTier === "premium"
         ? (settings?.paidGenerationLimit ?? 50)
         : (settings?.freeGenerationLimit ?? 5);
 
-      // Auto-refresh quota: free = 7 days, premium = 30 days
-      const cycleDays = userProfile.tier === "premium" ? 30 : 7;
+      // Auto-refresh quota cycle: free = 7 days, premium = 30 days
+      const cycleDays = currentTier === "premium" ? 30 : 7;
       const cycleMs = cycleDays * 24 * 60 * 60 * 1000;
-      const now = new Date();
       let quotaResetAt = userProfile.quotaResetAt;
 
       if (now.getTime() - quotaResetAt.getTime() >= cycleMs) {
@@ -3316,11 +3331,27 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Quota exhausted → try token fallback
       if (usedRequests.length >= generationLimit) {
-        return NextResponse.json(
-          { error: "Таны зураг үүсгэх эрх дууссан байна. Админтай холбогдоно уу." },
-          { status: 403 }
-        );
+        if (userProfile.tokenBalance > 0) {
+          const updated = await prisma.profile.update({
+            where: { id: user.id },
+            data: { tokenBalance: { decrement: 1 } },
+          });
+          await prisma.tokenLog.create({
+            data: {
+              userId: user.id,
+              amount: -1,
+              reason: "generation_use",
+              balance: updated.tokenBalance,
+            },
+          });
+        } else {
+          return NextResponse.json(
+            { error: "Таны зураг үүсгэх эрх дууссан байна. Token худалдаж аваад үргэлжлүүлнэ үү." },
+            { status: 403 }
+          );
+        }
       }
     }
 

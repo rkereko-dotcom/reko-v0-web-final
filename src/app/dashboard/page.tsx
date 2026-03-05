@@ -5,21 +5,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useSiteName } from "@/components/providers/site-settings-provider";
-import { QRCodeSVG } from "qrcode.react";
+
+interface QuotaInfo {
+  tier: string;
+  tokenBalance: number;
+  premiumExpiresAt: string | null;
+  quotaResetAt: string;
+  usedRequests: number;
+  limit: number;
+}
 
 export default function DashboardPage() {
   const { user, profile, loading, signOut } = useAuth();
   const siteName = useSiteName();
   const router = useRouter();
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [settings, setSettings] = useState<{ premiumMonthlyPrice: number; paidGenerationLimit: number } | null>(null);
+  const [quota, setQuota] = useState<QuotaInfo | null>(null);
 
   useEffect(() => {
-    fetch("/api/settings/upgrade-info")
-      .then((res) => res.json())
-      .then((data) => setSettings(data))
-      .catch(() => {});
-  }, []);
+    if (user) {
+      fetch("/api/profile/quota")
+        .then((res) => res.json())
+        .then((data) => setQuota(data))
+        .catch(() => {});
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -70,12 +79,12 @@ export default function DashboardPage() {
               Go to Studio
             </Link>
             {profile?.tier === "free" && (
-              <button
-                onClick={() => setShowUpgradeModal(true)}
+              <Link
+                href="/billing"
                 className="rounded-full bg-[#bde7ff] px-4 py-2 text-sm font-semibold text-black shadow-[0_12px_30px_-20px_rgba(140,215,255,0.6)]"
               >
                 Upgrade plan
-              </button>
+              </Link>
             )}
             <button
               onClick={handleSignOut}
@@ -113,13 +122,25 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
-            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">This month</p>
-            <div className="mt-3 text-3xl font-semibold text-white">12</div>
-            <p className="mt-1 text-sm text-zinc-500">Posters generated</p>
-            <div className="mt-4 h-2 w-full rounded-full bg-white/10">
-              <div className="h-2 w-2/3 rounded-full bg-[#bde7ff]/70" />
-            </div>
-            <p className="mt-2 text-xs text-zinc-500">8 remaining on Starter</p>
+            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">Зураг үүсгэлт</p>
+            {quota ? (
+              <>
+                <div className="mt-3 text-3xl font-semibold text-white">{quota.usedRequests}</div>
+                <p className="mt-1 text-sm text-zinc-500">{quota.limit} удаагаас ашигласан</p>
+                <div className="mt-4 h-2 w-full rounded-full bg-white/10">
+                  <div
+                    className="h-2 rounded-full bg-[#bde7ff]/70 transition-all"
+                    style={{ width: `${Math.min((quota.usedRequests / quota.limit) * 100, 100)}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-zinc-500">
+                  {Math.max(quota.limit - quota.usedRequests, 0)} удаа үлдсэн
+                  {quota.tokenBalance > 0 && ` · ${quota.tokenBalance} token`}
+                </p>
+              </>
+            ) : (
+              <div className="mt-3 text-sm text-zinc-500">Ачаалж байна...</div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
@@ -229,18 +250,51 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
-            <h2 className="text-white font-semibold">Plan & usage</h2>
-            <p className="text-sm text-zinc-500">Pro — $39 / month</p>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-200">Monthly limit</span>
-                <span className="text-zinc-400">Unlimited</span>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500">Next bill: Feb 28</p>
-            </div>
-            <button className="w-full rounded-xl bg-[#bde7ff] py-2.5 text-sm font-semibold text-black">
-              Manage subscription
-            </button>
+            <h2 className="text-white font-semibold">Багц & хэрэглээ</h2>
+            {quota ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    quota.tier === "premium"
+                      ? "bg-amber-500/15 text-amber-300"
+                      : "bg-zinc-700/50 text-zinc-400"
+                  }`}>
+                    {quota.tier === "premium" ? "Premium" : "Free"}
+                  </span>
+                  {quota.tokenBalance > 0 && (
+                    <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
+                      {quota.tokenBalance} token
+                    </span>
+                  )}
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-200">Лимит</span>
+                    <span className="text-zinc-400">{quota.limit} удаа / {quota.tier === "premium" ? "сар" : "7 хоног"}</span>
+                  </div>
+                  {quota.tier === "premium" && quota.premiumExpiresAt && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-zinc-200">Хугацаа дуусах</span>
+                      <span className="text-zinc-400">{new Date(quota.premiumExpiresAt).toLocaleDateString("mn-MN")}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-200">Дараагийн шинэчлэл</span>
+                    <span className="text-zinc-400">
+                      {new Date(new Date(quota.quotaResetAt).getTime() + (quota.tier === "premium" ? 30 : 7) * 86400000).toLocaleDateString("mn-MN")}
+                    </span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-zinc-500">Ачаалж байна...</div>
+            )}
+            <Link
+              href="/billing"
+              className="block w-full rounded-xl bg-[#bde7ff] py-2.5 text-center text-sm font-semibold text-black"
+            >
+              Багц удирдах
+            </Link>
           </div>
         </div>
 
@@ -280,101 +334,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {showUpgradeModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          onClick={() => setShowUpgradeModal(false)}
-        >
-          <div
-            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-zinc-950 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold text-white">Premium эрх авах</h3>
-            <p className="mt-1 text-sm text-zinc-400">
-              Premium болсноор илүү олон зураг үүсгэх боломжтой болно.
-            </p>
-
-            <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
-              {settings && (
-                <>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500">Сарын төлбөр</span>
-                    <span className="text-lg font-semibold text-white">
-                      {settings.premiumMonthlyPrice.toLocaleString("mn-MN")}₮
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500">Зургийн лимит</span>
-                    <span className="text-sm text-zinc-300">
-                      {settings.paidGenerationLimit} зураг/сар
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="mt-5 grid grid-cols-1 md:grid-cols-[auto,1fr] gap-5">
-              {/* QR Code - зүүн тал */}
-              <div className="flex flex-col items-center gap-3">
-                <div className="rounded-xl border border-white/10 bg-white p-3">
-                  <QRCodeSVG
-                    value={`bank://khanbank/5429123456780000?amount=${settings?.premiumMonthlyPrice ?? 29900}&ref=${user?.email ?? ""}`}
-                    size={180}
-                    level="M"
-                    bgColor="#ffffff"
-                    fgColor="#000000"
-                  />
-                </div>
-                <p className="text-xs text-zinc-500">QR код уншуулах</p>
-                {settings && (
-                  <p className="text-sm font-semibold text-white">
-                    {settings.premiumMonthlyPrice.toLocaleString("mn-MN")}₮
-                  </p>
-                )}
-              </div>
-
-              {/* Банкны мэдээлэл - баруун тал */}
-              <div className="rounded-xl border border-[#bde7ff]/20 bg-[#bde7ff]/5 p-4 space-y-3">
-                <p className="text-[11px] tracking-[0.08em] uppercase text-[#bde7ff] font-medium">
-                  Дансаар шилжүүлэх
-                </p>
-                <div className="space-y-2.5">
-                  <div>
-                    <p className="text-[11px] text-zinc-500">Хүлээн авах данс</p>
-                    <p className="text-sm font-medium text-white">5429 1234 5678</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-zinc-500">Хүлээн авагч</p>
-                    <p className="text-sm font-medium text-white">Реко ХХК</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-zinc-500">Банк</p>
-                    <p className="text-sm font-medium text-white">Хаан банк</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-zinc-500">Гүйлгээний утга</p>
-                    <p className="text-sm font-medium text-white">{user?.email}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-              <p className="text-xs text-amber-200/80">
-                Төлбөр төлөгдсөний дараа таны захиалга идэвхждэг болохыг анхаарааарай!
-                Гүйлгээний утга дээр <span className="font-semibold text-amber-100">{user?.email}</span> бичнэ үү.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowUpgradeModal(false)}
-              className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-white/10 transition"
-            >
-              Хаах
-            </button>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
