@@ -261,7 +261,7 @@ export default function AdminUserDetailPage() {
                 Эрх сунгагдсан: {formatDate(user.quotaResetAt)}
               </span>
               <span className="text-xs text-zinc-600">
-                Дараагийн шинэчлэл:{" "}
+                Эрх шинэчлэгдэлт:{" "}
                 {formatDate(
                   new Date(
                     new Date(user.quotaResetAt).getTime() +

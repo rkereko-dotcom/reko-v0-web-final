@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
-import { useSiteName } from "@/components/providers/site-settings-provider";
 
 interface QuotaInfo {
   tier: string;
@@ -15,17 +14,65 @@ interface QuotaInfo {
   limit: number;
 }
 
+interface DashboardStats {
+  recentImages: {
+    id: string;
+    filePath: string;
+    variationName: string;
+    requestId: string;
+    aspectRatio: string;
+    source: string;
+    createdAt: string;
+  }[];
+  totalGenerations: number;
+  generationsThisWeek: number;
+  generationsPrevWeek: number;
+  variationStats: { name: string; count: number }[];
+  recentProjects: {
+    requestId: string;
+    imageCount: number;
+    createdAt: string;
+    variationName: string;
+    aspectRatio: string;
+    source: string;
+  }[];
+  recentTokenLogs: {
+    id: string;
+    amount: number;
+    reason: string;
+    balance: number;
+    createdAt: string;
+  }[];
+  totalTokensUsed: number;
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Саяхан";
+  if (mins < 60) return `${mins} мин өмнө`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} цагийн өмнө`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} өдрийн өмнө`;
+  return new Date(dateStr).toLocaleDateString("mn-MN");
+}
+
 export default function DashboardPage() {
   const { user, profile, loading, signOut } = useAuth();
-  const siteName = useSiteName();
   const router = useRouter();
   const [quota, setQuota] = useState<QuotaInfo | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
 
   useEffect(() => {
     if (user) {
       fetch("/api/profile/quota")
         .then((res) => res.json())
         .then((data) => setQuota(data))
+        .catch(() => {});
+      fetch("/api/dashboard/stats")
+        .then((res) => res.json())
+        .then((data) => setStats(data))
         .catch(() => {});
     }
   }, [user]);
@@ -43,16 +90,30 @@ export default function DashboardPage() {
 
   if (loading || !user) {
     return (
-      <main className="relative z-10 flex-1 px-6 pb-16 pt-8">
+      <div className="min-h-screen gradient-bg px-6 pb-16 pt-8">
         <div className="mx-auto max-w-6xl flex items-center justify-center min-h-[50vh]">
           <p className="text-zinc-500 text-sm">Ачаалж байна...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
+  // Trend calculation
+  const trendPercent =
+    stats && stats.generationsPrevWeek > 0
+      ? Math.round(
+          ((stats.generationsThisWeek - stats.generationsPrevWeek) /
+            stats.generationsPrevWeek) *
+            100,
+        )
+      : null;
+
+  // Variation stats percentages
+  const totalVariationCount =
+    stats?.variationStats.reduce((sum, v) => sum + v.count, 0) ?? 0;
+
   return (
-    <main className="relative z-10 flex-1 px-6 pb-16 pt-8">
+    <div className="min-h-screen gradient-bg px-6 pb-16 pt-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -96,41 +157,33 @@ export default function DashboardPage() {
         </div>
 
         <div className="mb-6 flex flex-wrap gap-3 text-xs uppercase tracking-[0.25em] text-zinc-500">
-          <Link href="/library" className="hover:text-zinc-300">Library</Link>
-          <Link href="/billing" className="hover:text-zinc-300">Billing</Link>
-          <Link href="/" className="hover:text-zinc-300">Landing</Link>
+          <Link href="/library" className="hover:text-zinc-300">
+            Library
+          </Link>
+          <Link href="/billing" className="hover:text-zinc-300">
+            Billing
+          </Link>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
-            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">Quick actions</p>
-            <div className="mt-4 grid gap-2">
-              {[
-                { label: "New analysis", href: "/studio" },
-                { label: "New project", href: "/studio?new=1" },
-                { label: "Choose brand kit", href: "/library?tab=brand" },
-              ].map((action) => (
-                <Link
-                  key={action.label}
-                  href={action.href}
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:border-white/30 hover:bg-white/10"
-                >
-                  {action.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
-            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">Зураг үүсгэлт</p>
+            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">
+              Зураг үүсгэлт
+            </p>
             {quota ? (
               <>
-                <div className="mt-3 text-3xl font-semibold text-white">{quota.usedRequests}</div>
-                <p className="mt-1 text-sm text-zinc-500">{quota.limit} удаагаас ашигласан</p>
+                <div className="mt-3 text-3xl font-semibold text-white">
+                  {quota.usedRequests}
+                </div>
+                <p className="mt-1 text-sm text-zinc-500">
+                  {quota.limit} удаагаас ашигласан
+                </p>
                 <div className="mt-4 h-2 w-full rounded-full bg-white/10">
                   <div
                     className="h-2 rounded-full bg-[#bde7ff]/70 transition-all"
-                    style={{ width: `${Math.min((quota.usedRequests / quota.limit) * 100, 100)}%` }}
+                    style={{
+                      width: `${Math.min((quota.usedRequests / quota.limit) * 100, 100)}%`,
+                    }}
                   />
                 </div>
                 <p className="mt-2 text-xs text-zinc-500">
@@ -144,121 +197,89 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
-            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">Quality trend</p>
-            <div className="mt-3 flex items-center gap-3">
-              <div className="text-3xl font-semibold text-white">+18%</div>
-              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-300">
-                Up
-              </span>
-            </div>
-            <p className="text-zinc-500 text-sm mt-1">Average score vs last month</p>
-            <div className="mt-4 grid grid-cols-5 gap-1">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className={`h-10 rounded-lg ${i < 4 ? "bg-white/10" : "bg-[#bde7ff]/30"}`} />
-              ))}
-            </div>
+            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">
+              Үүсгэлтийн чиг хандлага
+            </p>
+            {stats ? (
+              <>
+                <div className="mt-3 flex items-center gap-3">
+                  <div className="text-3xl font-semibold text-white">
+                    {stats.generationsThisWeek}
+                  </div>
+                  {trendPercent !== null && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        trendPercent >= 0
+                          ? "bg-emerald-500/15 text-emerald-300"
+                          : "bg-red-500/15 text-red-300"
+                      }`}
+                    >
+                      {trendPercent >= 0 ? "+" : ""}
+                      {trendPercent}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-zinc-500 text-sm mt-1">
+                  Энэ 7 хоногт үүсгэсэн зураг
+                </p>
+                <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
+                  <span>Нийт: {stats.totalGenerations} зураг</span>
+                  <span>Өмнөх 7 хоног: {stats.generationsPrevWeek}</span>
+                </div>
+              </>
+            ) : (
+              <div className="mt-3 text-sm text-zinc-500">Ачаалж байна...</div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
-            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">Style affinity</p>
-            <div className="mt-3 space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-200">Minimal</span>
-                <span className="text-zinc-400">64%</span>
-              </div>
-              <div className="h-2 rounded-full bg-white/10">
-                <div className="h-2 w-[64%] rounded-full bg-[#bde7ff]/60" />
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-200">Editorial</span>
-                <span className="text-zinc-400">22%</span>
-              </div>
-              <div className="h-2 rounded-full bg-white/10">
-                <div className="h-2 w-[22%] rounded-full bg-white/25" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr,1fr]">
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <h2 className="text-white font-semibold">Recent projects</h2>
-              <button className="text-xs text-zinc-500 hover:text-zinc-300">Manage</button>
-            </div>
-            <div className="divide-y divide-white/10">
-              {[
-                { name: "Launch teaser", score: "78", status: "Improved", time: "2h ago" },
-                { name: "Product offer", score: "64", status: "Needs work", time: "Yesterday" },
-                { name: "Event invite", score: "71", status: "Improved", time: "Jan 21" },
-              ].map((row) => (
-                <div key={row.name} className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-[1.4fr,0.6fr,0.6fr,0.4fr]">
-                  <div className="text-zinc-200">{row.name}</div>
-                  <div className="text-zinc-400">Score {row.score}</div>
-                  <div className={`text-xs font-semibold ${row.status === "Improved" ? "text-emerald-300" : "text-zinc-400"}`}>
-                    {row.status}
-                  </div>
-                  <div className="text-xs text-zinc-500">{row.time}</div>
+            <h2 className="text-white font-semibold">Статистик</h2>
+            {stats ? (
+              <div className="mt-4 grid gap-3 text-sm text-zinc-400">
+                <div className="flex items-center justify-between">
+                  <span>Нийт үүсгэсэн зураг</span>
+                  <span className="text-zinc-200">
+                    {stats.totalGenerations}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
-            <h2 className="text-white font-semibold">In progress</h2>
-            {[
-              { name: "Holiday sale poster", progress: "65%", eta: "2 min" },
-              { name: "Mobile app ad", progress: "30%", eta: "5 min" },
-            ].map((item) => (
-              <div key={item.name} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-zinc-200">{item.name}</span>
-                  <span className="text-zinc-400">{item.progress}</span>
+                <div className="flex items-center justify-between">
+                  <span>Энэ 7 хоногт</span>
+                  <span className="text-zinc-200">
+                    {stats.generationsThisWeek}
+                  </span>
                 </div>
-                <div className="mt-2 h-2 rounded-full bg-white/10">
-                  <div className="h-2 w-[65%] rounded-full bg-[#bde7ff]/70" />
+                <div className="flex items-center justify-between">
+                  <span>Нийт зарцуулсан токен</span>
+                  <span className="text-zinc-200">{stats.totalTokensUsed}</span>
                 </div>
-                <p className="mt-2 text-xs text-zinc-500">ETA {item.eta}</p>
+                <div className="flex items-center justify-between">
+                  <span>Хамгийн их хэрэглэсэн төрөл</span>
+                  <span className="text-zinc-200">
+                    {stats.variationStats.length > 0
+                      ? stats.variationStats[0].name
+                      : "—"}
+                  </span>
+                </div>
               </div>
-            ))}
+            ) : (
+              <div className="mt-4 text-sm text-zinc-500">Ачаалж байна...</div>
+            )}
           </div>
         </div>
 
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
-            <h2 className="text-white font-semibold">Exports</h2>
-            {[
-              { name: "Launch teaser", format: "PNG · 2048", time: "2h ago" },
-              { name: "Product offer", format: "PDF · A4", time: "Yesterday" },
-              { name: "Event invite", format: "PNG · 1080", time: "Jan 21" },
-            ].map((item) => (
-              <div key={item.name} className="flex items-center justify-between text-sm">
-                <span className="text-zinc-200">{item.name}</span>
-                <span className="text-zinc-500">{item.format}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
-            <h2 className="text-white font-semibold">Brand kit</h2>
-            <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">
-              Active: {siteName} Studio (Fonts, colors, logo)
-            </div>
-            <button className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-white/15">
-              Manage brand kits
-            </button>
-          </div>
-
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
             <h2 className="text-white font-semibold">Багц & хэрэглээ</h2>
             {quota ? (
               <>
                 <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                    quota.tier === "premium"
-                      ? "bg-amber-500/15 text-amber-300"
-                      : "bg-zinc-700/50 text-zinc-400"
-                  }`}>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      quota.tier === "premium"
+                        ? "bg-amber-500/15 text-amber-300"
+                        : "bg-zinc-700/50 text-zinc-400"
+                    }`}
+                  >
                     {quota.tier === "premium" ? "Premium" : "Free"}
                   </span>
                   {quota.tokenBalance > 0 && (
@@ -270,18 +291,28 @@ export default function DashboardPage() {
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-zinc-200">Лимит</span>
-                    <span className="text-zinc-400">{quota.limit} удаа / {quota.tier === "premium" ? "сар" : "7 хоног"}</span>
+                    <span className="text-zinc-400">
+                      {quota.limit} удаа /{" "}
+                      {quota.tier === "premium" ? "сар" : "7 хоног"}
+                    </span>
                   </div>
                   {quota.tier === "premium" && quota.premiumExpiresAt && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-zinc-200">Хугацаа дуусах</span>
-                      <span className="text-zinc-400">{new Date(quota.premiumExpiresAt).toLocaleDateString("mn-MN")}</span>
+                      <span className="text-zinc-400">
+                        {new Date(quota.premiumExpiresAt).toLocaleDateString(
+                          "mn-MN",
+                        )}
+                      </span>
                     </div>
                   )}
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-200">Дараагийн шинэчлэл</span>
+                    <span className="text-zinc-200">Эрх шинэчлэгдэлт</span>
                     <span className="text-zinc-400">
-                      {new Date(new Date(quota.quotaResetAt).getTime() + (quota.tier === "premium" ? 30 : 7) * 86400000).toLocaleDateString("mn-MN")}
+                      {new Date(
+                        new Date(quota.quotaResetAt).getTime() +
+                          (quota.tier === "premium" ? 30 : 7) * 86400000,
+                      ).toLocaleDateString("mn-MN")}
                     </span>
                   </div>
                 </div>
@@ -296,44 +327,134 @@ export default function DashboardPage() {
               Багц удирдах
             </Link>
           </div>
-        </div>
-
-        <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr,1fr]">
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
-            <h2 className="text-white font-semibold">Insights</h2>
-            <div className="mt-4 grid gap-3 text-sm text-zinc-400">
-              <div className="flex items-center justify-between">
-                <span>Average score (last 7)</span>
-                <span className="text-zinc-200">76</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>CTR improvement</span>
-                <span className="text-emerald-300">+12%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Top fix</span>
-                <span className="text-zinc-200">Hierarchy + spacing</span>
-              </div>
-            </div>
+          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
+            <h2 className="text-white font-semibold">Сүүлийн зургууд</h2>
+            {stats?.recentImages && stats.recentImages.length > 0 ? (
+              stats.recentImages.slice(0, 5).map((img) => (
+                <div
+                  key={img.id}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <span className="text-zinc-200 truncate max-w-35">
+                    {img.variationName}
+                  </span>
+                  <span className="text-zinc-500">
+                    {img.aspectRatio} · {timeAgo(img.createdAt)}
+                  </span>
+                </div>
+              ))
+            ) : stats ? (
+              <p className="text-sm text-zinc-500">Одоогоор зураг байхгүй</p>
+            ) : (
+              <p className="text-sm text-zinc-500">Ачаалж байна...</p>
+            )}
           </div>
 
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
-            <h2 className="text-white font-semibold">Suggestions</h2>
-            <div className="mt-4 space-y-3">
-              {[
-                "Try a minimal variant for higher clarity.",
-                "Export 1080x1350 for paid socials.",
-                "Save this layout as a reusable template.",
-              ].map((tip) => (
-                <div key={tip} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300">
-                  {tip}
+            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">
+              Загварын төрлийн хэрэглээ
+            </p>
+            {stats ? (
+              <div className="mt-3 space-y-3">
+                {stats.variationStats.length > 0 ? (
+                  stats.variationStats.slice(0, 4).map((v) => {
+                    const pct =
+                      totalVariationCount > 0
+                        ? Math.round((v.count / totalVariationCount) * 100)
+                        : 0;
+                    return (
+                      <div key={v.name}>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-zinc-200 truncate max-w-40">
+                            {v.name}
+                          </span>
+                          <span className="text-zinc-400">{pct}%</span>
+                        </div>
+                        <div className="mt-1 h-2 rounded-full bg-white/10">
+                          <div
+                            className="h-2 rounded-full bg-[#bde7ff]/60 transition-all"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-zinc-500">
+                    Одоогоор мэдээлэл байхгүй
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-zinc-500">Ачаалж байна...</div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-[1.2fr,1fr]">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
+              <h2 className="text-white font-semibold">Зөвлөмж</h2>
+              <div className="mt-4 space-y-3">
+                {[
+                  "Minimal хэв маягтай зураг илүү тод харагддаг.",
+                  "1080x1350 хэмжээ нь сошиал зар сурталчилгаанд тохиромжтой.",
+                  "Studio-с шинэ зураг үүсгэж эхлэхэд бэлэн!",
+                ].map((tip) => (
+                  <div
+                    key={tip}
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300"
+                  >
+                    {tip}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
+              <h2 className="text-white font-semibold">Токен хэрэглээ</h2>
+              {stats?.recentTokenLogs && stats.recentTokenLogs.length > 0 ? (
+                stats.recentTokenLogs.slice(0, 5).map((log) => (
+                  <div
+                    key={log.id}
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3"
+                  >
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-zinc-200">
+                        {log.reason === "generation_use"
+                          ? "Зураг үүсгэлт"
+                          : log.reason === "qpay_purchase"
+                            ? "QPay худалдан авалт"
+                            : log.reason === "admin_grant"
+                              ? "Админ олголт"
+                              : log.reason}
+                      </span>
+                      <span
+                        className={`font-semibold ${
+                          log.amount > 0 ? "text-emerald-300" : "text-red-300"
+                        }`}
+                      >
+                        {log.amount > 0 ? "+" : ""}
+                        {log.amount}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between text-xs text-zinc-500">
+                      <span>Үлдэгдэл: {log.balance}</span>
+                      <span>{timeAgo(log.createdAt)}</span>
+                    </div>
+                  </div>
+                ))
+              ) : stats ? (
+                <div className="text-sm text-zinc-500">
+                  Токен хэрэглээний түүх байхгүй
                 </div>
-              ))}
+              ) : (
+                <div className="text-sm text-zinc-500">Ачаалж байна...</div>
+              )}
             </div>
           </div>
         </div>
       </div>
-
-    </main>
+    </div>
   );
 }

@@ -201,7 +201,7 @@ export default function BillingPage() {
 
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
             <p className="text-[11px] tracking-[0.08em] uppercase text-zinc-500">
-              Дараагийн шинэчлэл
+              Эрх шинэлэгдэлт
             </p>
             {quota && (
               <>
