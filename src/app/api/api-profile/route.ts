@@ -54,5 +54,65 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.json(profile, { headers: CORS_HEADERS });
+  // Quota calculation (same logic as /api/profile/quota)
+  const now = new Date();
+  let currentTier = profile.tier;
+
+  if (
+    currentTier === "premium" &&
+    profile.premiumExpiresAt &&
+    now > profile.premiumExpiresAt
+  ) {
+    await prisma.profile.update({
+      where: { id: profile.id },
+      data: { tier: "free", premiumExpiresAt: null },
+    });
+    currentTier = "free";
+  }
+
+  const settings = await prisma.siteSettings.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default" },
+  });
+
+  const limit =
+    currentTier === "premium"
+      ? settings.paidGenerationLimit
+      : settings.freeGenerationLimit;
+
+  const cycleDays = currentTier === "premium" ? 30 : 7;
+  const cycleMs = cycleDays * 24 * 60 * 60 * 1000;
+  let quotaResetAt = profile.quotaResetAt;
+
+  if (now.getTime() - quotaResetAt.getTime() >= cycleMs) {
+    quotaResetAt = now;
+    await prisma.profile.update({
+      where: { id: profile.id },
+      data: { quotaResetAt: now },
+    });
+  }
+
+  const usedRequests = await prisma.generatedImage.groupBy({
+    by: ["requestId"],
+    where: {
+      userId: profile.id,
+      createdAt: { gte: quotaResetAt },
+    },
+  });
+
+  return NextResponse.json(
+    {
+      ...profile,
+      tier: currentTier,
+      quota: {
+        used: usedRequests.length,
+        limit,
+        remaining: Math.max(0, limit - usedRequests.length),
+        tokenBalance: profile.tokenBalance,
+        quotaResetAt: quotaResetAt.toISOString(),
+      },
+    },
+    { headers: CORS_HEADERS },
+  );
 }

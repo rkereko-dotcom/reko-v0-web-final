@@ -113,7 +113,12 @@ export default function AdminUserDetailPage() {
       const updated = await res.json();
       setUser((prev) =>
         prev
-          ? { ...prev, tier: updated.tier, quotaResetAt: updated.quotaResetAt, premiumExpiresAt: updated.premiumExpiresAt }
+          ? {
+              ...prev,
+              tier: updated.tier,
+              quotaResetAt: updated.quotaResetAt,
+              premiumExpiresAt: updated.premiumExpiresAt,
+            }
           : prev,
       );
       setShowUpgradeModal(false);
@@ -137,7 +142,12 @@ export default function AdminUserDetailPage() {
       const updated = await res.json();
       setUser((prev) =>
         prev
-          ? { ...prev, tier: updated.tier, quotaResetAt: updated.quotaResetAt, premiumExpiresAt: updated.premiumExpiresAt }
+          ? {
+              ...prev,
+              tier: updated.tier,
+              quotaResetAt: updated.quotaResetAt,
+              premiumExpiresAt: updated.premiumExpiresAt,
+            }
           : prev,
       );
       setShowRenewModal(false);
@@ -243,6 +253,34 @@ export default function AdminUserDetailPage() {
             <h1 className="text-2xl font-semibold text-white tracking-tight truncate">
               {user.email ?? "—"}
             </h1>
+            <div className="mt-1.5 flex flex-col gap-2">
+              <span className="text-xs text-zinc-500">
+                Бүртгүүлсэн: {formatDate(user.createdAt)}
+              </span>
+              <span className="text-xs text-zinc-600">
+                Эрх сунгагдсан: {formatDate(user.quotaResetAt)}
+              </span>
+              <span className="text-xs text-zinc-600">
+                Дараагийн шинэчлэл:{" "}
+                {formatDate(
+                  new Date(
+                    new Date(user.quotaResetAt).getTime() +
+                      (user.tier === "premium" ? 30 : 7) * 24 * 60 * 60 * 1000,
+                  ).toISOString(),
+                )}{" "}
+                ({user.tier === "premium" ? "30 хоног" : "7 хоног"})
+              </span>
+              {user.premiumExpiresAt && (
+                <span
+                  className={`text-xs ${new Date(user.premiumExpiresAt) > new Date() ? "text-emerald-400" : "text-red-400"}`}
+                >
+                  Premium:{" "}
+                  {new Date(user.premiumExpiresAt) > new Date()
+                    ? `${formatDate(user.premiumExpiresAt)} хүртэл`
+                    : "хугацаа дууссан"}
+                </span>
+              )}
+            </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -262,27 +300,6 @@ export default function AdminUserDetailPage() {
               >
                 {user.tier === "premium" ? "Premium" : "Free"}
               </span>
-              <span className="text-xs text-zinc-500">
-                Бүртгүүлсэн: {formatDate(user.createdAt)}
-              </span>
-              <span className="text-xs text-zinc-600">
-                Эрх сунгагдсан: {formatDate(user.quotaResetAt)}
-              </span>
-              <span className="text-xs text-zinc-600">
-                Дараагийн шинэчлэл: {formatDate(
-                  new Date(
-                    new Date(user.quotaResetAt).getTime() +
-                    (user.tier === "premium" ? 30 : 7) * 24 * 60 * 60 * 1000
-                  ).toISOString()
-                )} ({user.tier === "premium" ? "30 хоног" : "7 хоног"})
-              </span>
-              {user.premiumExpiresAt && (
-                <span className={`text-xs ${new Date(user.premiumExpiresAt) > new Date() ? "text-emerald-400" : "text-red-400"}`}>
-                  Premium: {new Date(user.premiumExpiresAt) > new Date()
-                    ? `${formatDate(user.premiumExpiresAt)} хүртэл`
-                    : "хугацаа дууссан"}
-                </span>
-              )}
               <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
                 Token: {user.tokenBalance}
               </span>
@@ -322,7 +339,9 @@ export default function AdminUserDetailPage() {
             const imagesAfterReset = user.generatedImages.filter(
               (img) => new Date(img.createdAt) >= resetDate,
             );
-            const usedCount = new Set(imagesAfterReset.map((img) => img.requestId)).size;
+            const usedCount = new Set(
+              imagesAfterReset.map((img) => img.requestId),
+            ).size;
             const limit = generationLimit
               ? user.tier === "premium"
                 ? generationLimit.paid
@@ -481,7 +500,10 @@ export default function AdminUserDetailPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-zinc-500">Лимит</span>
                   <span className="text-sm font-semibold text-white">
-                    {user.tier === "premium" ? generationLimit.paid : generationLimit.free} удаа
+                    {user.tier === "premium"
+                      ? generationLimit.paid
+                      : generationLimit.free}{" "}
+                    удаа
                   </span>
                 </div>
                 <p className="text-xs text-zinc-500">
@@ -521,13 +543,16 @@ export default function AdminUserDetailPage() {
           >
             <h3 className="text-lg font-semibold text-white">Token нэмэх</h3>
             <p className="mt-2 text-sm text-zinc-400">
-              {user.email} хэрэглэгчид token нэмнэ. 1 token = 1 удаа generate (4 зураг).
+              {user.email} хэрэглэгчид token нэмнэ. 1 token = 1 удаа generate (4
+              зураг).
             </p>
 
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-4">
                 <span className="text-xs text-zinc-500">Одоогийн token</span>
-                <span className="text-sm font-semibold text-amber-300">{user.tokenBalance}</span>
+                <span className="text-sm font-semibold text-amber-300">
+                  {user.tokenBalance}
+                </span>
               </div>
               <div>
                 <label className="block text-[11px] tracking-[0.08em] uppercase text-zinc-500 mb-2">
@@ -537,7 +562,9 @@ export default function AdminUserDetailPage() {
                   type="number"
                   min={1}
                   value={tokenAmount}
-                  onChange={(e) => setTokenAmount(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) =>
+                    setTokenAmount(Math.max(1, parseInt(e.target.value) || 1))
+                  }
                   className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-zinc-200 outline-none focus:border-white/20 transition"
                 />
               </div>
