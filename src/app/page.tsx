@@ -34,14 +34,16 @@ const heroTiles = [
 
 export default function LandingPage() {
   const siteName = useSiteName();
-  const [shuffledTiles] = useState(() => {
+  const [shuffledTiles, setShuffledTiles] = useState(heroTiles);
+
+  useEffect(() => {
     const next = [...heroTiles];
     for (let i = next.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1));
       [next[i], next[j]] = [next[j], next[i]];
     }
-    return next;
-  });
+    setShuffledTiles(next);
+  }, []);
   const [compareValue, setCompareValue] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [showDock, setShowDock] = useState(false);

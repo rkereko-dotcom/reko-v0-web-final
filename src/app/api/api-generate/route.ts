@@ -200,7 +200,7 @@ function buildBusinessContextBlock(ctx: BusinessContext): string {
   if (ctx.targetAudience) parts.push(`Target audience: ${ctx.targetAudience}`);
   if (ctx.tone) parts.push(`Brand tone: ${ctx.tone}`);
   if (ctx.additionalInfo) parts.push(`Additional context: ${ctx.additionalInfo}`);
-  return `BUSINESS CONTEXT:\n${parts.join("\n")}`;
+  return `BUSINESS CONTEXT (for aesthetic direction only — DO NOT render any of this as text on the image):\n${parts.join("\n")}`;
 }
 
 function buildEnrichedPrompts(ctx: BusinessContext, count: number): Array<{ prompt: string; name: string }> {
@@ -272,8 +272,10 @@ ${styleGuidance}
 
 GENERATION RULES:
 - Create a professional, print-ready poster design
-- Incorporate the business identity and context naturally
-- Typography: bold headline, clean hierarchy
+- Use the business context ONLY to guide visual style, mood, color palette, and aesthetic direction
+- CRITICAL: Do NOT add, render, write, or overlay ANY new text on the image — no business names, product names, taglines, labels, captions, watermarks, or any other textual content from the prompt
+- The ONLY text allowed on the image is text that already exists in the source image — preserve that exactly
+- Typography: only style/enhance existing text from the source image, do not add new text
 - Color palette: 2-3 colors maximum, 1 accent
 - Layout: clean grid, 50-70% negative space
 - Full-bleed design: background must reach all four canvas edges

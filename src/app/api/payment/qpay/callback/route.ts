@@ -45,25 +45,32 @@ export async function GET(request: NextRequest) {
       });
     } else if (type === "premium") {
       const now = new Date();
-      const thirtyDaysLater = new Date(
-        now.getTime() + 30 * 24 * 60 * 60 * 1000,
-      );
-
       const prevTier = profile.tier;
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+
+      // If premium is still active, extend from current expiry date
+      const isActive =
+        prevTier === "premium" &&
+        profile.premiumExpiresAt &&
+        profile.premiumExpiresAt > now;
+
+      const baseDate = isActive ? profile.premiumExpiresAt! : now;
+      const newExpiresAt = new Date(baseDate.getTime() + thirtyDays);
 
       await prisma.profile.update({
         where: { id: userId },
         data: {
           tier: "premium",
-          premiumExpiresAt: thirtyDaysLater,
-          quotaResetAt: now,
+          premiumExpiresAt: newExpiresAt,
+          // Only reset quota when upgrading from free
+          ...(prevTier === "free" ? { quotaResetAt: now } : {}),
         },
       });
 
       await prisma.paymentLog.create({
         data: {
           userId,
-          action: "qpay_premium",
+          action: isActive ? "qpay_premium_renew" : "qpay_premium",
           prevTier,
           newTier: "premium",
         },

@@ -85,17 +85,33 @@ export default function BillingPage() {
     };
   }, [pollInterval]);
 
-  async function handlePurchase(type: "token" | "premium") {
+  async function handleBuyTokens() {
     setPurchasing(true);
     setInvoice(null);
     try {
-      const res = await fetch("/api/payment/qpay", {
+      const res = await fetch("/api/billing/tokens", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          tokenAmount: type === "token" ? tokenCount : undefined,
-        }),
+        body: JSON.stringify({ amount: tokenCount }),
+      });
+      if (!res.ok) throw new Error("Invoice үүсгэхэд алдаа гарлаа");
+      const data = await res.json();
+      setInvoice(data);
+      startPolling(data.invoiceId);
+    } catch {
+      // QPay not configured — show manual payment info only
+    } finally {
+      setPurchasing(false);
+    }
+  }
+
+  async function handlePremium() {
+    setPurchasing(true);
+    setInvoice(null);
+    try {
+      const res = await fetch("/api/billing/premium", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) throw new Error("Invoice үүсгэхэд алдаа гарлаа");
       const data = await res.json();
@@ -266,7 +282,7 @@ export default function BillingPage() {
               </div>
 
               <button
-                onClick={() => handlePurchase("token")}
+                onClick={handleBuyTokens}
                 disabled={purchasing}
                 className="w-full rounded-xl bg-amber-500/90 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 transition disabled:opacity-50"
               >
@@ -328,14 +344,23 @@ export default function BillingPage() {
               </div>
 
               {quota?.tier === "premium" ? (
-                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-center">
-                  <p className="text-sm text-emerald-300 font-medium">
-                    Premium идэвхтэй — {premiumDaysLeft} хоног үлдсэн
-                  </p>
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-center">
+                    <p className="text-sm text-emerald-300 font-medium">
+                      Premium идэвхтэй — {premiumDaysLeft} хоног үлдсэн
+                    </p>
+                  </div>
+                  <button
+                    onClick={handlePremium}
+                    disabled={purchasing}
+                    className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20 transition disabled:opacity-50"
+                  >
+                    {purchasing ? "Уншиж байна..." : "+30 хоног сунгах"}
+                  </button>
                 </div>
               ) : (
                 <button
-                  onClick={() => handlePurchase("premium")}
+                  onClick={handlePremium}
                   disabled={purchasing}
                   className="w-full rounded-xl bg-emerald-500/90 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 transition disabled:opacity-50"
                 >

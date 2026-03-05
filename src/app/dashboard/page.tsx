@@ -157,9 +157,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="mb-6 flex flex-wrap gap-3 text-xs uppercase tracking-[0.25em] text-zinc-500">
-          <Link href="/library" className="hover:text-zinc-300">
-            Library
-          </Link>
           <Link href="/billing" className="hover:text-zinc-300">
             Billing
           </Link>
@@ -330,7 +327,7 @@ export default function DashboardPage() {
           <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
             <h2 className="text-white font-semibold">Сүүлийн зургууд</h2>
             {stats?.recentImages && stats.recentImages.length > 0 ? (
-              stats.recentImages.slice(0, 5).map((img) => (
+              stats.recentImages.slice(0, 6).map((img) => (
                 <div
                   key={img.id}
                   className="flex items-center justify-between text-sm"
