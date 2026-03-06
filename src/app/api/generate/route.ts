@@ -6,7 +6,7 @@ import { logEvent } from "@/lib/telemetry";
 import { extractCodeBlocks, loadPromptFile } from "@/lib/prompt-loader";
 import { pickCoreRulesPrompt } from "@/lib/prompt-policy";
 import { buildReferenceCueBlock, findReferenceMatches } from "@/lib/reference-matcher";
-import { saveGeneratedImages, saveGeneratedImageRecords } from "@/lib/save-image";
+import { logGeneration } from "@/lib/generation-log";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 
@@ -3323,8 +3323,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const usedRequests = await prisma.generatedImage.groupBy({
-        by: ["requestId"],
+      const usedRequests = await prisma.generationLog.count({
         where: {
           userId: user.id,
           createdAt: { gte: quotaResetAt },
@@ -3332,7 +3331,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Quota exhausted → try token fallback
-      if (usedRequests.length >= generationLimit) {
+      if (usedRequests >= generationLimit) {
         if (userProfile.tokenBalance > 0) {
           const updated = await prisma.profile.update({
             where: { id: user.id },
@@ -3802,15 +3801,8 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Auto-save generated images to disk with proper variation names
-        const savedPaths = saveGeneratedImages(generatedImages, variationNames);
-
-        // Save image records to database
-        const imagesForDb = generatedImages.map(img => ({
-          index: img.index,
-          name: variationNames[img.index] || `Variation ${img.index + 1}`,
-        }));
-        await saveGeneratedImageRecords(user.id, savedPaths, imagesForDb, requestId, aspectRatio, "studio");
+        // Log generation for quota tracking
+        await logGeneration(user.id, requestId, "studio", generatedImages.length);
 
         // Add variation names to the response
         const imagesWithNames = generatedImages.map(img => ({
@@ -4009,15 +4001,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-save generated images to disk with proper variation names
-    const savedPaths = saveGeneratedImages(generatedImages, variationNames);
-
-    // Save image records to database
-    const imagesForDb = generatedImages.map(img => ({
-      index: img.index,
-      name: variationNames[img.index] || `Variation ${img.index + 1}`,
-    }));
-    await saveGeneratedImageRecords(user.id, savedPaths, imagesForDb, requestId, aspectRatio, "studio");
+    // Log generation for quota tracking
+    await logGeneration(user.id, requestId, "studio", generatedImages.length);
 
     // Add variation names to the response
     const imagesWithNames = generatedImages.map(img => ({
@@ -4037,7 +4022,6 @@ export async function POST(request: NextRequest) {
       totalGenerated: generatedImages.length,
       requestId,
       analysisId: activeAnalysisId,
-      savedPaths,
     });
   } catch (error) {
     console.error("Server error:", error);

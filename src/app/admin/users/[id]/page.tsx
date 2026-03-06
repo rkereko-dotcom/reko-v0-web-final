@@ -1,18 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 
-interface GeneratedImageRow {
+interface GenerationLogRow {
   id: string;
-  filePath: string;
-  variationName: string;
   requestId: string;
-  aspectRatio: string;
   source: string;
+  imageCount: number;
   createdAt: string;
 }
 
@@ -26,12 +23,7 @@ interface UserDetail {
   quotaResetAt: string;
   tokenBalance: number;
   premiumExpiresAt: string | null;
-  generatedImages: GeneratedImageRow[];
-}
-
-function getImageUrl(filePath: string) {
-  const filename = filePath.split(/[/\\]/).pop() || "";
-  return `/api/admin/images?file=${encodeURIComponent(filename)}`;
+  generationLogs: GenerationLogRow[];
 }
 
 function formatDate(dateStr: string) {
@@ -51,10 +43,6 @@ export default function AdminUserDetailPage() {
   const [user, setUser] = useState<UserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<GeneratedImageRow | null>(
-    null,
-  );
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [generationLimit, setGenerationLimit] = useState<{
     free: number;
     paid: number;
@@ -64,11 +52,6 @@ export default function AdminUserDetailPage() {
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [tokenAmount, setTokenAmount] = useState(1);
   const [upgrading, setUpgrading] = useState(false);
-
-  const closeModal = useCallback(() => {
-    setSelectedImage(null);
-    setImageLoaded(false);
-  }, []);
 
   useEffect(() => {
     if (profile?.role === "admin" && params.id) {
@@ -89,16 +72,6 @@ export default function AdminUserDetailPage() {
       }
     } catch {}
   }
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") closeModal();
-    }
-    if (selectedImage) {
-      document.addEventListener("keydown", handleKey);
-      return () => document.removeEventListener("keydown", handleKey);
-    }
-  }, [selectedImage, closeModal]);
 
   async function handleUpgrade() {
     if (!params.id) return;
@@ -330,18 +303,16 @@ export default function AdminUserDetailPage() {
         </div>
       </div>
 
-      {/* Generated Images */}
+      {/* Generation Logs */}
       <div className="rounded-2xl border border-white/8 bg-zinc-950/80 overflow-hidden">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <h2 className="text-white font-semibold">Үүсгэсэн зургууд</h2>
+          <h2 className="text-white font-semibold">Үүсгэлтийн түүх</h2>
           {(() => {
             const resetDate = new Date(user.quotaResetAt);
-            const imagesAfterReset = user.generatedImages.filter(
-              (img) => new Date(img.createdAt) >= resetDate,
+            const logsAfterReset = user.generationLogs.filter(
+              (log) => new Date(log.createdAt) >= resetDate,
             );
-            const usedCount = new Set(
-              imagesAfterReset.map((img) => img.requestId),
-            ).size;
+            const usedCount = logsAfterReset.length;
             const limit = generationLimit
               ? user.tier === "premium"
                 ? generationLimit.paid
@@ -367,44 +338,36 @@ export default function AdminUserDetailPage() {
           })()}
         </div>
 
-        {user.generatedImages.length === 0 ? (
+        {user.generationLogs.length === 0 ? (
           <div className="flex items-center justify-center py-16">
-            <p className="text-sm text-zinc-500">Зураг үүсгээгүй байна</p>
+            <p className="text-sm text-zinc-500">Үүсгэлт хийгээгүй байна</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5 text-[11px] tracking-[0.08em] uppercase text-zinc-500">
-                <th className="px-5 py-3 text-left font-medium">Нэр</th>
                 <th className="px-5 py-3 text-left font-medium">Эх сурвалж</th>
-                <th className="px-5 py-3 text-left font-medium">Хэмжээ</th>
+                <th className="px-5 py-3 text-left font-medium">Зургийн тоо</th>
                 <th className="px-5 py-3 text-left font-medium">Огноо</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {user.generatedImages.map((img) => (
-                <tr
-                  key={img.id}
-                  onClick={() => setSelectedImage(img)}
-                  className="hover:bg-white/2 transition cursor-pointer"
-                >
-                  <td className="px-5 py-4 text-zinc-200">
-                    {img.variationName}
-                  </td>
+              {user.generationLogs.map((log) => (
+                <tr key={log.id} className="hover:bg-white/2 transition">
                   <td className="px-5 py-4">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        img.source === "studio"
+                        log.source === "studio"
                           ? "bg-[#bde7ff]/15 text-[#bde7ff]"
                           : "bg-amber-500/15 text-amber-300"
                       }`}
                     >
-                      {img.source === "studio" ? "Studio" : "API"}
+                      {log.source === "studio" ? "Studio" : "API"}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-zinc-400">{img.aspectRatio}</td>
+                  <td className="px-5 py-4 text-zinc-400">{log.imageCount}</td>
                   <td className="px-5 py-4 text-zinc-500 text-xs">
-                    {formatDate(img.createdAt)}
+                    {formatDate(log.createdAt)}
                   </td>
                 </tr>
               ))}
@@ -589,68 +552,6 @@ export default function AdminUserDetailPage() {
         </div>
       )}
 
-      {/* Image Preview Modal */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={closeModal}
-        >
-          <div
-            className="relative mx-4 flex max-h-[90vh] max-w-3xl flex-col rounded-2xl border border-white/10 bg-zinc-950 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal header */}
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">
-                  {selectedImage.variationName}
-                </p>
-                <p className="text-xs text-zinc-500">
-                  {selectedImage.aspectRatio} &middot;{" "}
-                  {selectedImage.source === "studio" ? "Studio" : "API"}{" "}
-                  &middot; {formatDate(selectedImage.createdAt)}
-                </p>
-              </div>
-              <button
-                onClick={closeModal}
-                className="ml-4 shrink-0 rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6 18 18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            {/* Image */}
-            <div className="flex items-center justify-center overflow-auto p-4 min-h-50">
-              {!imageLoaded && (
-                <p className="absolute text-sm text-zinc-500">
-                  Ачаалж байна...
-                </p>
-              )}
-              <Image
-                src={getImageUrl(selectedImage.filePath)}
-                alt={selectedImage.variationName}
-                width={800}
-                height={800}
-                className={`max-h-[70vh] w-auto rounded-lg object-contain transition-opacity ${imageLoaded ? "opacity-100" : "opacity-0"}`}
-                unoptimized
-                onLoad={() => setImageLoaded(true)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

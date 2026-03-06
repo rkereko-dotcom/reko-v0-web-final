@@ -60,8 +60,7 @@ export async function GET() {
     });
   }
 
-  const usedRequests = await prisma.generatedImage.groupBy({
-    by: ["requestId"],
+  const usedRequests = await prisma.generationLog.count({
     where: {
       userId: user.id,
       createdAt: { gte: quotaResetAt },
@@ -73,7 +72,7 @@ export async function GET() {
     tokenBalance: profile.tokenBalance,
     premiumExpiresAt: profile.premiumExpiresAt,
     quotaResetAt: quotaResetAt.toISOString(),
-    usedRequests: usedRequests.length,
+    usedRequests,
     limit,
   });
 }

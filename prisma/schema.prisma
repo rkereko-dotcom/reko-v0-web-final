@@ -28,26 +28,24 @@ model Profile {
   tokenBalance     Int       @default(0) @map("token_balance")
   premiumExpiresAt DateTime? @map("premium_expires_at")
 
-  generatedImages GeneratedImage[]
+  generationLogs  GenerationLog[]
   paymentLogs     PaymentLog[]
   tokenLogs       TokenLog[]
 
   @@map("profiles")
 }
 
-model GeneratedImage {
-  id            String   @id @default(cuid())
-  userId        String   @db.Uuid @map("user_id")
-  filePath      String   @map("file_path")
-  variationName String   @map("variation_name")
-  requestId     String   @map("request_id")
-  aspectRatio   String   @map("aspect_ratio")
-  source        String   // "studio" | "api"
-  createdAt     DateTime @default(now()) @map("created_at")
+model GenerationLog {
+  id         String   @id @default(cuid())
+  userId     String   @db.Uuid @map("user_id")
+  requestId  String   @map("request_id")
+  source     String   // "studio" | "api"
+  imageCount Int      @default(1) @map("image_count")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   profile Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("generated_images")
+  @@map("generation_logs")
 }
 
 model PaymentLog {

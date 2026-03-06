@@ -15,27 +15,16 @@ interface QuotaInfo {
 }
 
 interface DashboardStats {
-  recentImages: {
+  recentGenerations: {
     id: string;
-    filePath: string;
-    variationName: string;
     requestId: string;
-    aspectRatio: string;
     source: string;
+    imageCount: number;
     createdAt: string;
   }[];
   totalGenerations: number;
   generationsThisWeek: number;
   generationsPrevWeek: number;
-  variationStats: { name: string; count: number }[];
-  recentProjects: {
-    requestId: string;
-    imageCount: number;
-    createdAt: string;
-    variationName: string;
-    aspectRatio: string;
-    source: string;
-  }[];
   recentTokenLogs: {
     id: string;
     amount: number;
@@ -107,10 +96,6 @@ export default function DashboardPage() {
             100,
         )
       : null;
-
-  // Variation stats percentages
-  const totalVariationCount =
-    stats?.variationStats.reduce((sum, v) => sum + v.count, 0) ?? 0;
 
   return (
     <div className="min-h-screen gradient-bg px-6 pb-16 pt-8">
@@ -249,14 +234,6 @@ export default function DashboardPage() {
                   <span>Нийт зарцуулсан токен</span>
                   <span className="text-zinc-200">{stats.totalTokensUsed}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Хамгийн их хэрэглэсэн төрөл</span>
-                  <span className="text-zinc-200">
-                    {stats.variationStats.length > 0
-                      ? stats.variationStats[0].name
-                      : "—"}
-                  </span>
-                </div>
               </div>
             ) : (
               <div className="mt-4 text-sm text-zinc-500">Ачаалж байна...</div>
@@ -324,66 +301,26 @@ export default function DashboardPage() {
               Багц удирдах
             </Link>
           </div>
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4">
-            <h2 className="text-white font-semibold">Сүүлийн зургууд</h2>
-            {stats?.recentImages && stats.recentImages.length > 0 ? (
-              stats.recentImages.slice(0, 6).map((img) => (
+          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5 space-y-4 lg:col-span-2">
+            <h2 className="text-white font-semibold">Сүүлийн үүсгэлтүүд</h2>
+            {stats?.recentGenerations && stats.recentGenerations.length > 0 ? (
+              stats.recentGenerations.slice(0, 6).map((gen) => (
                 <div
-                  key={img.id}
+                  key={gen.id}
                   className="flex items-center justify-between text-sm"
                 >
-                  <span className="text-zinc-200 truncate max-w-35">
-                    {img.variationName}
+                  <span className="text-zinc-200">
+                    {gen.source === "api" ? "API" : "Studio"} · {gen.imageCount} зураг
                   </span>
                   <span className="text-zinc-500">
-                    {img.aspectRatio} · {timeAgo(img.createdAt)}
+                    {timeAgo(gen.createdAt)}
                   </span>
                 </div>
               ))
             ) : stats ? (
-              <p className="text-sm text-zinc-500">Одоогоор зураг байхгүй</p>
+              <p className="text-sm text-zinc-500">Одоогоор үүсгэлт байхгүй</p>
             ) : (
               <p className="text-sm text-zinc-500">Ачаалж байна...</p>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/80 p-5">
-            <p className="text-[11px] tracking-[0.08em] normal-case text-zinc-500">
-              Загварын төрлийн хэрэглээ
-            </p>
-            {stats ? (
-              <div className="mt-3 space-y-3">
-                {stats.variationStats.length > 0 ? (
-                  stats.variationStats.slice(0, 4).map((v) => {
-                    const pct =
-                      totalVariationCount > 0
-                        ? Math.round((v.count / totalVariationCount) * 100)
-                        : 0;
-                    return (
-                      <div key={v.name}>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-zinc-200 truncate max-w-40">
-                            {v.name}
-                          </span>
-                          <span className="text-zinc-400">{pct}%</span>
-                        </div>
-                        <div className="mt-1 h-2 rounded-full bg-white/10">
-                          <div
-                            className="h-2 rounded-full bg-[#bde7ff]/60 transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-sm text-zinc-500">
-                    Одоогоор мэдээлэл байхгүй
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="mt-3 text-sm text-zinc-500">Ачаалж байна...</div>
             )}
           </div>
         </div>

@@ -93,8 +93,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const usedRequests = await prisma.generatedImage.groupBy({
-    by: ["requestId"],
+  const usedRequests = await prisma.generationLog.count({
     where: {
       userId: profile.id,
       createdAt: { gte: quotaResetAt },
@@ -106,9 +105,9 @@ export async function GET(request: NextRequest) {
       ...profile,
       tier: currentTier,
       quota: {
-        used: usedRequests.length,
+        used: usedRequests,
         limit,
-        remaining: Math.max(0, limit - usedRequests.length),
+        remaining: Math.max(0, limit - usedRequests),
         tokenBalance: profile.tokenBalance,
         quotaResetAt: quotaResetAt.toISOString(),
       },

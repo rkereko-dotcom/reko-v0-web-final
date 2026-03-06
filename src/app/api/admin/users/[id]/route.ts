@@ -28,7 +28,7 @@ export async function GET(
   const profile = await prisma.profile.findUnique({
     where: { id },
     include: {
-      generatedImages: {
+      generationLogs: {
         orderBy: { createdAt: "desc" },
       },
     },
